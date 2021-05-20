@@ -1,0 +1,4 @@
+dash
+elasticsearch
+elasticsearch-dsl
+requests

@@ -1,0 +1,13 @@
+version: "3.7"
+services:
+
+  wlo-data-analysis:
+    build:
+      context: .
+    image: data-analysis
+    container_name: wlo-data-analysis
+    ports:
+      - "8050:8050"
+    environment:
+      - TARGET=$TARGET
+    restart: unless-stopped
