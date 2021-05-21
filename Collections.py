@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 
 # CONSTANTS
 ES_COLLECTION_URL = "https://redaktion.openeduhub.net/edu-sharing/components/collections?id={}"
-ES_NODE_URL = "https://redaktion.openeduhub.net/edu-sharing/components/render/{}"
+ES_NODE_URL = "https://redaktion.openeduhub.net/edu-sharing/components/render/{}?action={}"
 ES_PREVIEW_URL = "https://redaktion.openeduhub.net/edu-sharing/preview?maxWidth=200&maxHeight=200&crop=true&storeProtocol=workspace&storeId=SpacesStore&nodeId={}"
 
 oeh = OEHElastic()
@@ -27,11 +27,14 @@ class MissingInfo:
     name: str = ""
     title: str = ""
     type: str = ""
+    action: str = ""
     es_url: str = field(init=False)
 
     def __post_init__(self):
-        print(self.type)
-        self.es_url = (ES_COLLECTION_URL if self.type == 'ccm:map' else ES_NODE_URL).format(self._id)
+        if self.type == 'ccm:map':
+            self.es_url = ES_COLLECTION_URL.format(self._id)
+        else:
+            self.es_url = ES_NODE_URL.format(self._id, self.action)
 
 
 class Collection:
@@ -344,16 +347,19 @@ class Collection:
             r: list = r1 + r2
         else:
             raise ValueError("qtype is not of: collection, resource, license")
-        result: list[MissingInfo] = [self.parse_result(item) for item in r]
+        result: list[MissingInfo] = [self.parse_result(item, qtype) for item in r]
         return result
 
-    def parse_result(self, resource):
+    def parse_result(self, resource, qtype: Literal["collection", "resource", "license"]):
         _id = resource.get("_source", {}).get("nodeRef", {}).get("id", None)
         name = resource.get("_source", {}).get("properties", {}).get("cm:name", None)
         title = resource.get("_source", {}).get("properties", {}).get("cclom:title", None)
-        print(resource.get("_source", {}))
         type = resource.get("_source", {}).get("type", None)
-        return MissingInfo(_id, name, title, type)
+        # action hint for edu-sharing to open dialog
+        action = "OPTIONS.EDIT"
+        if qtype == "license":
+            action = "OPTIONS.LICENSE"
+        return MissingInfo(_id, name, title, type, action)
 
     def make_url(self):
         return self.name.lower().replace(" ", "-").replace("ü", "ue")
