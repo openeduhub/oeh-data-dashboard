@@ -1,21 +1,22 @@
 #%%
-from elasticsearch import Elasticsearch
-import requests
+import logging
 from dataclasses import dataclass, field
-from OEHElastic import OEHElastic
-from collections import namedtuple
+from typing import Literal
+
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objects as go
-import logging
-from typing import Literal
-from Constants import fpm_icons
+import requests
 
+from Constants import fpm_icons
+from OEHElastic import OEHElastic
 
 logging.basicConfig(level=logging.INFO)
 
 # CONSTANTS
-ES_QUERY_URL = "https://redaktion.openeduhub.net/edu-sharing/components/search?query="
+ES_COLLECTION_URL = "https://redaktion.openeduhub.net/edu-sharing/components/collections?id={}"
+ES_NODE_URL = "https://redaktion.openeduhub.net/edu-sharing/components/render/{}"
+ES_PREVIEW_URL = "https://redaktion.openeduhub.net/edu-sharing/preview?maxWidth=200&maxHeight=200&crop=true&storeProtocol=workspace&storeId=SpacesStore&nodeId={}"
 
 oeh = OEHElastic()
 
@@ -25,10 +26,12 @@ class MissingInfo:
     _id: str
     name: str = ""
     title: str = ""
+    type: str = ""
     es_url: str = field(init=False)
 
     def __post_init__(self):
-        self.es_url = ES_QUERY_URL + self._id
+        print(self.type)
+        self.es_url = (ES_COLLECTION_URL if self.type == 'ccm:map' else ES_NODE_URL).format(self._id)
 
 
 class Collection:
@@ -105,7 +108,7 @@ class Collection:
     def sort_licenses(self, licenses):
         oer_cols = ["CC_0", "CC_BY", "CC_BY_SA", "PDM"]
         cc_but_not_oer = ["CC_BY_NC", "CC_BY_NC_ND",
-                      "CC_BY_NC_SA", "CC_BY_SA_NC", "CC_BY_ND"]
+                          "CC_BY_NC_SA", "CC_BY_SA_NC", "CC_BY_ND"]
         copyright_cols = ["COPYRIGHT_FREE",	"COPYRIGHT_LICENSE", "CUSTOM"]
         missing_cols = ["", "NONE", "UNTERRICHTS_UND_LEHRMEDIEN"]
 
@@ -157,10 +160,17 @@ class Collection:
                         html.P(
                             children=[
                                 html.A(
-                                    children=f"{i.title if i.title else i.name}",
+                                    children=[
+                                        html.Div(
+                                            children=[
+                                                html.Span(f"{i.title if i.title else i.name}"),
+                                                html.Img(src=ES_PREVIEW_URL.format(i._id)),
+                                            ]
+                                        )
+                                    ],
                                     href=f"{i.es_url}",
                                     target="_blank"
-                                    )
+                                )
                             ]
                         )
                     ]
@@ -194,16 +204,16 @@ class Collection:
         Returns a div with the infos for missing resources.
         """
         return html.Div(
-                            children=[
-                                html.P(
-                                    f"{title} ({len(attribute)}):"),
-                                html.Div(
-                                    children=self.build_link_container(attribute),
-                                    className="card"
-                                )
-                            ],
-                            className="card-box"
-                        )
+            children=[
+                html.P(
+                    f"{title} ({len(attribute)}):"),
+                html.Div(
+                    children=self.build_link_container(attribute),
+                    className="card"
+                )
+            ],
+            className="card-box"
+        )
 
 
     def build_layout(self):
@@ -244,9 +254,9 @@ class Collection:
                                        className="sum-material"),
                                 html.H3("Datenqualitätsscore"),
                                 html.P(self.quality_score,
-                                    className="quality-score",
-                                    **{"data-status": f"{self.quality_score}"},
-                                )
+                                       className="quality-score",
+                                       **{"data-status": f"{self.quality_score}"},
+                                       )
                             ]
                         ),
                         html.Div(
@@ -287,7 +297,7 @@ class Collection:
                         res_no_keywords
                     ]
                 ),
-# end materialien
+                # end materialien
                 html.H2(
                     "Deine Sammlungen",
                     className="row-header"
@@ -298,7 +308,7 @@ class Collection:
                     children=[
                         coll_no_description,
                         coll_no_keywords,
-                        
+
                         # html.Div(
                         #     children=[
                         #         html.P(
@@ -341,7 +351,9 @@ class Collection:
         _id = resource.get("_source", {}).get("nodeRef", {}).get("id", None)
         name = resource.get("_source", {}).get("properties", {}).get("cm:name", None)
         title = resource.get("_source", {}).get("properties", {}).get("cclom:title", None)
-        return MissingInfo(_id, name, title)
+        print(resource.get("_source", {}))
+        type = resource.get("_source", {}).get("type", None)
+        return MissingInfo(_id, name, title, type)
 
     def make_url(self):
         return self.name.lower().replace(" ", "-").replace("ü", "ue")
@@ -383,22 +395,22 @@ class Collections:
 
 
     def build_cards_for_index_page(self) -> list:
-            """
-            build index links
-            """
-            index_links = []
-            for item in self.collections:
-                index_links.extend([
-                    dcc.Link(
-                        href=item.app_url,
-                        className="fpm-card",
-                        children=[
-                            html.Img(src=fpm_icons.get(item.name, item.iconURL)),
-                            html.P(f"{item.title}")
-                        ]
-                    )
-                ])
-            return index_links
+        """
+        build index links
+        """
+        index_links = []
+        for item in self.collections:
+            index_links.extend([
+                dcc.Link(
+                    href=item.app_url,
+                    className="fpm-card",
+                    children=[
+                        html.Img(src=fpm_icons.get(item.name, item.iconURL)),
+                        html.P(f"{item.title}")
+                    ]
+                )
+            ])
+        return index_links
 
 if __name__ == "__main__":
     c = Collections()

@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 
 import json
-from elasticsearch import Elasticsearch
-from pprint import pprint
 from typing import Literal
 
+from elasticsearch import Elasticsearch
+
+SOURCE_FIELDS = [
+    "nodeRef",
+    "type",
+    "preview",
+    "properties.cclom:title",
+    "properties.cm:name"
+]
 class OEHElastic:
+
     es: Elasticsearch
 
     def __init__(self, hosts=["127.0.0.1"]) -> None:
@@ -57,11 +65,7 @@ class OEHElastic:
                     "must_not": [{"wildcard": {attribute: "*"}}]
                 }
             },
-            "_source": [
-                "nodeRef.id",
-                "properties.cclom:title",
-                "properties.cm:name"
-            ],
+            "_source": SOURCE_FIELDS,
             "size": count,
             "track_total_hits": True
         }
@@ -83,11 +87,7 @@ class OEHElastic:
                     "must_not": [{"wildcard": {attribute: "*"}}]
                 }
             },
-            "_source": [
-                "nodeRef.id",
-                "properties.cclom:title",
-                "properties.cm:name"
-            ],
+            "_source": SOURCE_FIELDS,
             "size": count,
             "track_total_hits": True
         }
@@ -129,7 +129,7 @@ class OEHElastic:
                 "terms": {
                     "properties.ccm:commonlicense_key.keyword": [ "NONE", "", "UNTERRICHTS_UND_LEHRMEDIEN"]
                 }
-        }
+            }
         else:
             additional_condition = None
         body = {
@@ -140,11 +140,7 @@ class OEHElastic:
                     ]
                 }
             },
-            "_source": [
-                "nodeRef.id",
-                "properties.cclom:title",
-                "properties.cm:name"
-            ],
+            "_source": SOURCE_FIELDS,
             "size": count,
             "track_total_hits": True
         }
@@ -156,7 +152,7 @@ if __name__ == "__main__":
     print("\n\n\n\n")
     # print(json.dumps(oeh.getStatisicCounts("4940d5da-9b21-4ec0-8824-d16e0409e629"), indent=4))
     # print(json.dumps(oeh.get_material_by_condition("4940d5da-9b21-4ec0-8824-d16e0409e629", count=0), indent=4))
-# ohne titel
+    # ohne titel
     print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
     # ohne fachzuordnung
     # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:educationalcontext", 10), indent=4))
@@ -168,4 +164,4 @@ if __name__ == "__main__":
 # # sammlung ohne beschreibung
 # print(json.dumps(oeh.getCollectionByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.cclom:general_keyword", 0), indent=4))
 # # sammlung ohne schlagworte
-    # print(json.dumps(oeh.getCollectionByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.cm:description", 10), indent=4))
+# print(json.dumps(oeh.getCollectionByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.cm:description", 10), indent=4))
