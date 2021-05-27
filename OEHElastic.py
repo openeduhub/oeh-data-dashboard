@@ -153,14 +153,14 @@ class OEHElastic:
         return self.es.search(body=body, index="workspace", pretty=True)
 
 
-    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 1000):
+    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 10000):
         """
         Returns the oeh search analytics.
         """
         def filter_search_strings(unfiltered: list[dict]):
             for item in unfiltered:
                 search_string = item.get("_source", {}).get("searchString", None)
-                if search_string:
+                if search_string and search_string.strip() != "":
                     yield search_string
                 else:
                     continue
@@ -200,10 +200,10 @@ if __name__ == "__main__":
     # print(json.dumps(oeh.get_material_by_condition("4940d5da-9b21-4ec0-8824-d16e0409e629", count=0), indent=4))
 # ohne titel
     # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
-    pprint(oeh.get_oeh_search_analytics())
+    # pprint(oeh.get_oeh_search_analytics())
     pprint(oeh.get_oeh_search_analytics())
     # ohne fachzuordnung
-    # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:educationalcontext", 10), indent=4))
+    print(json.dumps(oeh.getMaterialByMissingAttribute("15fce411-54d9-467f-8f35-61ea374a298d", "properties.ccm:educationalcontext", 10), indent=4))
 # # ohne fachzuordnung
 # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:taxonid", 0), indent=4))
 # # ohne schlagworte
