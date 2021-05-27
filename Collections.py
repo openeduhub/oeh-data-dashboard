@@ -172,7 +172,6 @@ class Collection:
     def build_license_fig(self):
         """
         Builds a licenses Dataframe with columns: OER, CC-Lizenz, Copyright-Lizenz and Fehlende Lizenz.
-        It returns the dataframe at saves it to disk.
         """
         labels = list(self.licenses.keys())
         sizes = list(self.licenses.values())
@@ -194,16 +193,16 @@ class Collection:
         Returns a div with the infos for missing resources.
         """
         return html.Div(
-                            children=[
-                                html.P(
-                                    f"{title} ({len(attribute)}):"),
-                                html.Div(
-                                    children=self.build_link_container(attribute),
-                                    className="card"
-                                )
-                            ],
-                            className="card-box"
-                        )
+            children=[
+                html.P(
+                    f"{title} ({len(attribute)}):"),
+                html.Div(
+                    children=self.build_link_container(attribute),
+                    className="card"
+                )
+            ],
+            className="card-box"
+        )
 
 
     def build_layout(self):

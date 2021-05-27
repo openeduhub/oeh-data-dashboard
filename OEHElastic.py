@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
-import json
 from elasticsearch import Elasticsearch
 from pprint import pprint
 from typing import Literal
+from collections import Counter
 
 class OEHElastic:
     es: Elasticsearch
 
     def __init__(self, hosts=["127.0.0.1"]) -> None:
         self.es = Elasticsearch(hosts=hosts)
+        self.last_timestamp = "now-30d" # get values for last 30 days by default
 
     def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
         must_conditions = [
@@ -151,13 +152,56 @@ class OEHElastic:
         # print(body)
         return self.es.search(body=body, index="workspace", pretty=True)
 
+
+    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 1000):
+        """
+        Returns the oeh search analytics.
+        """
+        def filter_search_strings(unfiltered: list[dict]):
+            for item in unfiltered:
+                search_string = item.get("_source", {}).get("searchString", None)
+                if search_string:
+                    yield search_string
+                else:
+                    continue
+
+
+        if not timestamp:
+            timestamp = self.last_timestamp
+        body = {
+            "query": { 
+                "range": { 
+                "timestamp": { 
+                    "gt": timestamp
+                } 
+                } 
+            },
+            "size": count,
+            "sort": [
+                {
+                "timestamp": {
+                    "order": "desc"
+                   }
+                }
+            ]
+        }
+
+        r: list[dict] = self.es.search(body=body, index="oeh-search-analytics", pretty=True).get("hits", {}).get("hits", [])
+        if len(r):
+            self.last_timestamp = r[0].get("_source", {}).get("timestamp")
+        filtered_search_strings = filter_search_strings(r)
+        search_counter = Counter(list(filtered_search_strings))
+        return search_counter
+
 if __name__ == "__main__":
     oeh = OEHElastic()
     print("\n\n\n\n")
     # print(json.dumps(oeh.getStatisicCounts("4940d5da-9b21-4ec0-8824-d16e0409e629"), indent=4))
     # print(json.dumps(oeh.get_material_by_condition("4940d5da-9b21-4ec0-8824-d16e0409e629", count=0), indent=4))
 # ohne titel
-    print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
+    # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
+    pprint(oeh.get_oeh_search_analytics())
+    pprint(oeh.get_oeh_search_analytics())
     # ohne fachzuordnung
     # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:educationalcontext", 10), indent=4))
 # # ohne fachzuordnung
