@@ -26,12 +26,12 @@ class MissingInfo:
     _id: str
     name: str = ""
     title: str = ""
-    type: str = ""
+    _type: str = ""
     action: str = ""
     es_url: str = field(init=False)
 
     def __post_init__(self):
-        if self.type == 'ccm:map':
+        if self._type == 'ccm:map':
             self.es_url = ES_COLLECTION_URL.format(self._id)
         else:
             self.es_url = ES_NODE_URL.format(self._id, self.action)
@@ -354,12 +354,12 @@ class Collection:
         _id = resource.get("_source", {}).get("nodeRef", {}).get("id", None)
         name = resource.get("_source", {}).get("properties", {}).get("cm:name", None)
         title = resource.get("_source", {}).get("properties", {}).get("cclom:title", None)
-        type = resource.get("_source", {}).get("type", None)
+        _type = resource.get("_source", {}).get("type", None)
         # action hint for edu-sharing to open dialog
         action = "OPTIONS.EDIT"
         if qtype == "license":
             action = "OPTIONS.LICENSE"
-        return MissingInfo(_id, name, title, type, action)
+        return MissingInfo(_id, name, title, _type, action)
 
     def make_url(self):
         return self.name.lower().replace(" ", "-").replace("ü", "ue")
