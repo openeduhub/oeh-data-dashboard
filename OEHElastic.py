@@ -2,8 +2,12 @@
 
 import json
 from typing import Literal
+import os
 
+from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
+
+load_dotenv()
 
 SOURCE_FIELDS = [
     "nodeRef",
@@ -16,7 +20,7 @@ class OEHElastic:
 
     es: Elasticsearch
 
-    def __init__(self, hosts=["127.0.0.1"]) -> None:
+    def __init__(self, hosts=[os.getenv("ES_HOST", "localhost")]) -> None:
         self.es = Elasticsearch(hosts=hosts)
 
     def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
