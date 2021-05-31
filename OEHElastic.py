@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 
+from dataclasses import dataclass, field
+import logging
+
 from elasticsearch import Elasticsearch
 from pprint import pprint
 from typing import Generator, Literal
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, namedtuple
 import requests
 
+logging.basicConfig(level=logging.INFO)
+
+# TODO call this from Collections.py
 class EduSharing:
     @staticmethod
     def get_collections():
@@ -29,10 +35,17 @@ class EduSharing:
             params=params
         ).json().get("collections")
 
-        # TODO
-        # collections = sorted([Collection(item) for item in r_collections])
-
+        # if sort:
+        #     collections = sorted([Collection(item) for item in r_collections])
+        #     return collections
         return r_collections
+
+
+@dataclass
+class SearchedMaterialInfo:
+    _id: str
+    search_strings: Counter
+    clicks: int
 
 
 class OEHElastic:
@@ -41,6 +54,7 @@ class OEHElastic:
     def __init__(self, hosts=["127.0.0.1"]) -> None:
         self.es = Elasticsearch(hosts=hosts)
         self.last_timestamp = "now-30d" # get values for last 30 days by default
+        self.searched_materials_by_collection = self.get_oeh_search_analytics()
 
     def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
         must_conditions = [
@@ -183,7 +197,7 @@ class OEHElastic:
         return self.es.search(body=body, index="workspace", pretty=True)
 
 
-    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 10000):
+    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 500):
         """
         Returns the oeh search analytics.
         """
@@ -220,79 +234,75 @@ class OEHElastic:
   
         filtered_search_strings = filter_search_strings(r)
         search_counter = Counter(list(filtered_search_strings))
+        @dataclass
+        class ResourceData:
+            search_strings: list = field(default_factory=list)
+            fps: set = field(default_factory=set)
+            clicks: int = 0
 
-        # which material is associated with which term and to which portal does it belong?
-        # action result_click
-    #     {
-    #     "_index" : "oeh-search-analytics",
-    #     "_type" : "_doc",
-    #     "_id" : "m-NmsnkBlIJJNA7cpCRV",
-    #     "_score" : null,
-    #     "_source" : {
-    #       "action" : "result_click",
-    #       "sessionId" : "g7k9o7iq8dkp85ggqa",
-    #       "userAgent" : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
-    #       "screenWidth" : 1920,
-    #       "screenHeight" : 1080,
-    #       "language" : "en",
-    #       "searchString" : "parabel",
-    #       "page" : 0,
-    #       "filters" : { },
-    #       "filtersSidebarIsVisible" : false,
-    #       "clickedResult" : {
-    #         "id" : "6987b8c5-2469-4854-bb0b-efe3423e30b9",
-    #         "lom" : {
-    #           "general" : {
-    #             "title" : "Parabel und Parabel",
-    #             "keyword" : null
-    #           },
-    #           "technical" : {
-    #             "location" : "https://www.geogebra.org/m/sMw85hmS"
-    #           }
-    #         },
-    #         "type" : "content",
-    #         "source" : {
-    #           "name" : "GeoGebra",
-    #           "url" : "https://www.geogebra.org"
-    #         },
-    #         "license" : {
-    #           "oer" : true
-    #         },
-    #         "editorialTags" : [ ],
-    #         "skos" : {
-    #           "discipline" : null,
-    #           "educationalContext" : null,
-    #           "learningResourceType" : [
-    #             {
-    #               "id" : "http://w3id.org/openeduhub/vocabs/learningResourceType/worksheet",
-    #               "label" : "worksheet"
-    #             }
-    #           ]
-    #         }
-    #       },
-    #       "clickKind" : "click",
-    #       "timestamp" : "2021-05-28T09:55:41.760Z"
-    #     },
-    #     "sort" : [
-    #       1622195741760
-    #     ]
-    #   },
-        # dict of {term: [clicked Materials]}
+
         def filter_for_terms_and_materials(res: list[dict]):
             terms_and_materials = defaultdict(list)
+            materials_by_terms = defaultdict(ResourceData)
             filtered_res = (item for item in res if item.get("_source", {}).get("action", None) == "result_click")
             for item in (item.get("_source") for item in filtered_res):
-                terms_and_materials[item.get("searchString")].append(item.get("clickedResult").get("id"))
-            return terms_and_materials
+                search_string = item.get("searchString")
+                clicked_resource = item.get("clickedResult").get("id")
+                terms_and_materials[search_string].append(clicked_resource)
+
+                # we got to check the FPs for the given resource
+                logging.info(f"checking included fps for resource id: {clicked_resource}")
+                included_fps = self.check_resource_in_fps(clicked_resource, list(collections_ids_title.keys()))
+                materials_by_terms[clicked_resource]
+                materials_by_terms[clicked_resource].search_strings.append(search_string)
+                materials_by_terms[clicked_resource].fps.update(included_fps)
+                materials_by_terms[clicked_resource].clicks += 1
+            return terms_and_materials, materials_by_terms
 
 
-        terms_and_materials = filter_for_terms_and_materials(r)
         # we have to check if path contains one of the edu-sharing collections with an elastic query
         # get fpm collections
         collections = EduSharing.get_collections()
         collections_ids_title = {item.get("properties").get("sys:node-uuid")[0]: item.get("title") for item in collections}
+        terms_and_materials, materials_by_terms = filter_for_terms_and_materials(r)
 
-        return search_counter
+        # assign material to fpm portals
+        collections_by_material = defaultdict(list)
+        for key in materials_by_terms:
+            if fps:=materials_by_terms[key].fps:
+                for fp in fps:
+                    material = SearchedMaterialInfo(key, Counter(materials_by_terms[key].search_strings), materials_by_terms[key].clicks)
+                    collections_by_material[fp].append(material)
+
+
+        return collections_by_material
+
+    def get_node_path(self, node_id) -> dict:
+        """
+        Queries elastic for a given node and returns the collection paths
+        """
+        
+        body = {
+            "query": { 
+                "match": {
+                     "nodeRef.id": node_id
+                }
+            },
+            "_source": "collections.path"
+        }
+        return self.es.search(body=body, index="workspace", pretty=True)
+
+
+    def check_resource_in_fps(self, resource_id: str, collection_ids: list) -> list:
+        try:
+            paths = self.get_node_path(resource_id).get("hits", {}).get("hits", [])[0].get("_source").get("collections", [])[0].get("path", None)
+            included_fps = [path for path in paths if path in collection_ids]
+            return included_fps
+        except:
+            return []
+
+    
+    
 
 if __name__ == "__main__":
     oeh = OEHElastic()
