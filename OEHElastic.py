@@ -1,13 +1,66 @@
 #!/usr/bin/env python3
 
 import json
-from typing import Literal
+import logging
 import os
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from typing import Generator, Literal
 
+import requests
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+
+
+class EduSharing:
+    @staticmethod
+    def get_collections():
+        ES_COLLECTIONS_URL = "https://redaktion.openeduhub.net/edu-sharing/rest/collection/v1/collections/local/5e40e372-735c-4b17-bbf7-e827a5702b57/children/collections?scope=TYPE_EDITORIAL&skipCount=0&maxItems=1247483647&sortProperties=cm%3Acreated&sortAscending=true&"
+
+        headers = {
+            "Accept": "application/json"
+        }
+
+        params = {
+            "scope": "TYPE_EDITORIAL",
+            "skipCount": "0",
+            "maxItems": "1247483647",
+            "sortProperties": "cm%3Acreated",
+            "sortAscending": "true"
+        }
+
+        r_collections: list = requests.get(
+            ES_COLLECTIONS_URL,
+            headers=headers,
+            params=params
+        ).json().get("collections")
+
+        # if sort:
+        #     collections = sorted([Collection(item) for item in r_collections])
+        #     return collections
+        return r_collections
+
+
+@dataclass
+class SearchedMaterialInfo:
+    _id: str = ""
+    search_strings: Counter = field(default_factory=Counter)
+    clicks: int = 0
+    name: str = ""
+    title: str = ""
+    fps: set = field(default_factory=set)
+
+# # TODO Resour
+# @dataclass
+# class ResourceData:
+#     search_strings: list = field(default_factory=list)
+#     fps: set = field(default_factory=set)
+#     clicks: int = 0
+
 
 SOURCE_FIELDS = [
     "nodeRef",
@@ -22,6 +75,8 @@ class OEHElastic:
 
     def __init__(self, hosts=[os.getenv("ES_HOST", "localhost")]) -> None:
         self.es = Elasticsearch(hosts=hosts)
+        self.last_timestamp = "now-30d" # get values for last 30 days by default
+        self.searched_materials_by_collection = self.get_oeh_search_analytics()
 
     def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
         must_conditions = [
@@ -151,15 +206,139 @@ class OEHElastic:
         # print(body)
         return self.es.search(body=body, index="workspace", pretty=True)
 
+
+    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 500):
+        """
+        Returns the oeh search analytics.
+        """
+        def filter_search_strings(unfiltered: list[dict]) -> Generator:
+            for item in unfiltered:
+                search_string = item.get("_source", {}).get("searchString", None)
+                if search_string and search_string.strip() != "":
+                    yield search_string
+                else:
+                    continue
+
+
+        if not timestamp:
+            timestamp = self.last_timestamp
+        body = {
+            "query": { 
+                "range": { 
+                "timestamp": { 
+                    "gt": timestamp
+                } 
+                } 
+            },
+            "size": count,
+            "sort": [
+                {
+                "timestamp": {
+                    "order": "desc"
+                   }
+                }
+            ]
+        }
+
+        r: list[dict] = self.es.search(body=body, index="oeh-search-analytics", pretty=True).get("hits", {}).get("hits", [])
+  
+        filtered_search_strings = filter_search_strings(r)
+        search_counter = Counter(list(filtered_search_strings))
+
+
+        def filter_for_terms_and_materials(res: list[dict]):
+            terms_and_materials = defaultdict(list)
+            materials_by_terms = defaultdict(SearchedMaterialInfo)
+            filtered_res = (item for item in res if item.get("_source", {}).get("action", None) == "result_click")
+            for item in (item.get("_source") for item in filtered_res):
+                search_string: str = item.get("searchString")
+                clicked_resource = item.get("clickedResult").get("id")
+                terms_and_materials[search_string].append(clicked_resource)
+
+                # we got to check the FPs for the given resource
+                logging.info(f"checking included fps for resource id: {clicked_resource}")
+
+                # build the object
+                if not materials_by_terms.get(clicked_resource, None):
+                    included_fps, name, title = self.check_resource_in_fps(clicked_resource, list(collections_ids_title.keys()))
+                    materials_by_terms[clicked_resource].fps.update(included_fps)
+                    materials_by_terms[clicked_resource].name = name
+                    materials_by_terms[clicked_resource].title = title
+                    
+                materials_by_terms[clicked_resource].search_strings.update([search_string])
+                materials_by_terms[clicked_resource].clicks += 1
+            return terms_and_materials, materials_by_terms
+
+
+        # we have to check if path contains one of the edu-sharing collections with an elastic query
+        # get fpm collections
+        collections = EduSharing.get_collections()
+        collections_ids_title = {item.get("properties").get("sys:node-uuid")[0]: item.get("title") for item in collections}
+        terms_and_materials, materials_by_terms = filter_for_terms_and_materials(r)
+
+        # assign material to fpm portals
+        collections_by_material = defaultdict(list)
+        for key in materials_by_terms:
+            if fps:=materials_by_terms[key].fps:
+                for fp in fps:
+                    m = materials_by_terms[key]
+                    material = SearchedMaterialInfo(
+                        _id=key,
+                        search_strings=m.search_strings,
+                        clicks=m.clicks,
+                        name=m.name,
+                        title=m.title
+                        )
+                    collections_by_material[fp].append(material)
+
+
+        return collections_by_material
+
+    def get_node_path(self, node_id) -> dict:
+        """
+        Queries elastic for a given node and returns the collection paths
+        """
+        
+        body = {
+            "query": { 
+                "match": {
+                     "nodeRef.id": node_id
+                }
+            },
+            "_source": [
+                "properties.cclom:title",
+                "properties.cm:name",
+                "collections.path"
+                ]
+        }
+        return self.es.search(body=body, index="workspace", pretty=True)
+
+
+    def check_resource_in_fps(self, resource_id: str, collection_ids: list) -> list:
+        try:
+            hit: dict = self.get_node_path(resource_id).get("hits", {}).get("hits", [])[0]
+            paths = hit.get("_source").get("collections", [])[0].get("path", None)
+            name = hit.get("_source").get("properties", {}).get("cm:name", None) # internal name
+            title = hit.get("_source").get("properties", {}).get("cclom:title", None) # readable title
+            included_fps = [path for path in paths if path in collection_ids]
+            return included_fps, name, title
+        except:
+            return [], "", ""
+
+    
+    
+
 if __name__ == "__main__":
     oeh = OEHElastic()
     print("\n\n\n\n")
     # print(json.dumps(oeh.getStatisicCounts("4940d5da-9b21-4ec0-8824-d16e0409e629"), indent=4))
     # print(json.dumps(oeh.get_material_by_condition("4940d5da-9b21-4ec0-8824-d16e0409e629", count=0), indent=4))
-    # ohne titel
-    print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
+# ohne titel
+    # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
+    # pprint(oeh.get_oeh_search_analytics())
+    oeh.get_oeh_search_analytics()
     # ohne fachzuordnung
-    # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:educationalcontext", 10), indent=4))
+    # print(json.dumps(oeh.getMaterialByMissingAttribute("15fce411-54d9-467f-8f35-61ea374a298d", "properties.ccm:educationalcontext", 10), indent=4))
 # # ohne fachzuordnung
 # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:taxonid", 0), indent=4))
 # # ohne schlagworte

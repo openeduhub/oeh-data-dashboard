@@ -95,6 +95,9 @@ body {
 .info-row-1 {
   grid-template-columns: repeat(3, 1fr);
 }
+.info-row-2 {
+  grid-template-columns: repeat(1, 1fr);
+}
 
 .row-header {
   text-align: center;
