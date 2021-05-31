@@ -2,8 +2,38 @@
 
 from elasticsearch import Elasticsearch
 from pprint import pprint
-from typing import Literal
-from collections import Counter
+from typing import Generator, Literal
+from collections import Counter, defaultdict
+import requests
+
+class EduSharing:
+    @staticmethod
+    def get_collections():
+        ES_COLLECTIONS_URL = "https://redaktion.openeduhub.net/edu-sharing/rest/collection/v1/collections/local/5e40e372-735c-4b17-bbf7-e827a5702b57/children/collections?scope=TYPE_EDITORIAL&skipCount=0&maxItems=1247483647&sortProperties=cm%3Acreated&sortAscending=true&"
+
+        headers = {
+            "Accept": "application/json"
+        }
+
+        params = {
+            "scope": "TYPE_EDITORIAL",
+            "skipCount": "0",
+            "maxItems": "1247483647",
+            "sortProperties": "cm%3Acreated",
+            "sortAscending": "true"
+        }
+
+        r_collections: list = requests.get(
+            ES_COLLECTIONS_URL,
+            headers=headers,
+            params=params
+        ).json().get("collections")
+
+        # TODO
+        # collections = sorted([Collection(item) for item in r_collections])
+
+        return r_collections
+
 
 class OEHElastic:
     es: Elasticsearch
@@ -157,7 +187,7 @@ class OEHElastic:
         """
         Returns the oeh search analytics.
         """
-        def filter_search_strings(unfiltered: list[dict]):
+        def filter_search_strings(unfiltered: list[dict]) -> Generator:
             for item in unfiltered:
                 search_string = item.get("_source", {}).get("searchString", None)
                 if search_string and search_string.strip() != "":
@@ -187,10 +217,81 @@ class OEHElastic:
         }
 
         r: list[dict] = self.es.search(body=body, index="oeh-search-analytics", pretty=True).get("hits", {}).get("hits", [])
-        if len(r):
-            self.last_timestamp = r[0].get("_source", {}).get("timestamp")
+  
         filtered_search_strings = filter_search_strings(r)
         search_counter = Counter(list(filtered_search_strings))
+
+        # which material is associated with which term and to which portal does it belong?
+        # action result_click
+    #     {
+    #     "_index" : "oeh-search-analytics",
+    #     "_type" : "_doc",
+    #     "_id" : "m-NmsnkBlIJJNA7cpCRV",
+    #     "_score" : null,
+    #     "_source" : {
+    #       "action" : "result_click",
+    #       "sessionId" : "g7k9o7iq8dkp85ggqa",
+    #       "userAgent" : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+    #       "screenWidth" : 1920,
+    #       "screenHeight" : 1080,
+    #       "language" : "en",
+    #       "searchString" : "parabel",
+    #       "page" : 0,
+    #       "filters" : { },
+    #       "filtersSidebarIsVisible" : false,
+    #       "clickedResult" : {
+    #         "id" : "6987b8c5-2469-4854-bb0b-efe3423e30b9",
+    #         "lom" : {
+    #           "general" : {
+    #             "title" : "Parabel und Parabel",
+    #             "keyword" : null
+    #           },
+    #           "technical" : {
+    #             "location" : "https://www.geogebra.org/m/sMw85hmS"
+    #           }
+    #         },
+    #         "type" : "content",
+    #         "source" : {
+    #           "name" : "GeoGebra",
+    #           "url" : "https://www.geogebra.org"
+    #         },
+    #         "license" : {
+    #           "oer" : true
+    #         },
+    #         "editorialTags" : [ ],
+    #         "skos" : {
+    #           "discipline" : null,
+    #           "educationalContext" : null,
+    #           "learningResourceType" : [
+    #             {
+    #               "id" : "http://w3id.org/openeduhub/vocabs/learningResourceType/worksheet",
+    #               "label" : "worksheet"
+    #             }
+    #           ]
+    #         }
+    #       },
+    #       "clickKind" : "click",
+    #       "timestamp" : "2021-05-28T09:55:41.760Z"
+    #     },
+    #     "sort" : [
+    #       1622195741760
+    #     ]
+    #   },
+        # dict of {term: [clicked Materials]}
+        def filter_for_terms_and_materials(res: list[dict]):
+            terms_and_materials = defaultdict(list)
+            filtered_res = (item for item in res if item.get("_source", {}).get("action", None) == "result_click")
+            for item in (item.get("_source") for item in filtered_res):
+                terms_and_materials[item.get("searchString")].append(item.get("clickedResult").get("id"))
+            return terms_and_materials
+
+
+        terms_and_materials = filter_for_terms_and_materials(r)
+        # we have to check if path contains one of the edu-sharing collections with an elastic query
+        # get fpm collections
+        collections = EduSharing.get_collections()
+        collections_ids_title = {item.get("properties").get("sys:node-uuid")[0]: item.get("title") for item in collections}
+
         return search_counter
 
 if __name__ == "__main__":
@@ -201,9 +302,9 @@ if __name__ == "__main__":
 # ohne titel
     # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
     # pprint(oeh.get_oeh_search_analytics())
-    pprint(oeh.get_oeh_search_analytics())
+    oeh.get_oeh_search_analytics()
     # ohne fachzuordnung
-    print(json.dumps(oeh.getMaterialByMissingAttribute("15fce411-54d9-467f-8f35-61ea374a298d", "properties.ccm:educationalcontext", 10), indent=4))
+    # print(json.dumps(oeh.getMaterialByMissingAttribute("15fce411-54d9-467f-8f35-61ea374a298d", "properties.ccm:educationalcontext", 10), indent=4))
 # # ohne fachzuordnung
 # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:taxonid", 0), indent=4))
 # # ohne schlagworte
