@@ -3,9 +3,8 @@ import logging
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash_core_components.Loading import Loading
 
-from Collections import Collection, Collections
+from Collections import Collections
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,35 +22,7 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
                 suppress_callback_exceptions=True)
 app.title = "WLO Analytics"
 
-
-def build_index_page(C: Collections):
-    index_page = html.Div(
-        children=[
-            dcc.Loading(
-            id="loading-1",
-            type="default",
-            fullscreen=True,
-            children=html.Div(
-                id="loading-output-1",
-                children=[
-                    html.Div(className="index-container",
-                            children=[
-                                *C.cards_for_index_page,
-                            ]),
-                    html.Div(
-                        className="info-row-2",
-                        children=[
-                            C.searched_materials_not_in_collections_layout
-                            ]
-                        )
-                    ]
-                )
-            )
-        ]
-    )
-    return index_page
-
-index_page = build_index_page(C)
+index_page = C.build_index_page()
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -76,9 +47,14 @@ app.layout = html.Div([
 def display_page(pathname):
     if pathname in C.pathnames:
         target_collection = next(collection for collection in C.collections if collection.app_url == pathname.removeprefix("/"))
+        
+        # TODO call get_search_analytics method to update search results
+        C.get_oeh_search_analytics()
         target_collection.load_data()
         return target_collection.layout
     else:
+        C.get_oeh_search_analytics()
+        index_page = C.build_index_page()
         return index_page
 
 

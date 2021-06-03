@@ -1,11 +1,12 @@
-#%%
 import logging
 from dataclasses import dataclass, field
 from typing import Literal
 
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_table
 import plotly.graph_objects as go
+import pandas as pd
 
 from Constants import fpm_icons
 from OEHElastic import EduSharing, OEHElastic, SearchedMaterialInfo
@@ -74,6 +75,7 @@ class Collection:
 
 
     def load_data(self):
+        self.clicked_materials: list[SearchedMaterialInfo] = oeh.searched_materials_by_collection.get(self._id, [])
         self.resources_total: int = self.get_resources_total()
         self.resources_no_licenses: list[MissingInfo] = self.get_missing_attribute(None, qtype="license")
         self.licenses: dict = self.get_licenses()
@@ -218,9 +220,17 @@ class Collection:
             className="card-box"
         )
 
-    def build_searched_materials(self, title, materials: list[SearchedMaterialInfo] = []):
+    @classmethod
+    def build_searched_materials(cls, title, materials: list[SearchedMaterialInfo] = []):
+        # df = pd.DataFrame([x.as_dict() for x in materials])
+        # layout = dash_table.DataTable(
+        #     id="table",
+        #     columns=[{"name": i, "id": i} for i in df.columns],
+        #     data=df.to_dict('records')
+        # )
+        # return layout
         clicked_materials = []
-        search_term_count = "Suchbegriff: {} ({})" # term, count
+        search_term_count = "Suchbegriff: \"{}\" ({})" # term, count
         for material in materials:
             search_term_comprehension = " ".join([search_term_count.format(term, count) for term, count in material.search_strings.items()])
             clicked_materials.append(
@@ -231,8 +241,11 @@ class Collection:
                                 html.Div(
                                     children=[
                                         html.Span(f"{material.title if material.title else material.name}"),
-                                        html.Img(src=ES_PREVIEW_URL.format(material._id)),
-                                        html.Span(f"{search_term_comprehension}, {material.clicks}")
+                                        html.Span(f"{search_term_comprehension}, Klicks auf Material: {material.clicks}", style={
+                                            "text-align": "right",
+                                            "padding-right": "10px"
+                                            }),
+                                        html.Img(src=ES_PREVIEW_URL.format(material._id))
                                     ]
                                 )
                             ],
@@ -263,7 +276,7 @@ class Collection:
         res_no_license = self.build_missing_info_card("Materialien ohne Lizenz", self.resources_no_licenses)
         coll_no_keywords = self.build_missing_info_card("Sammlungen ohne Schlagworte", self.collection_no_keywords)
         coll_no_description = self.build_missing_info_card("Sammlung ohne Beschreibungstext", self.collection_no_description)
-        searched_materials = self.build_searched_materials("Diese Materialien aus deinem Fachportal wurden gesucht", self.clicked_materials)
+        searched_materials = self.build_searched_materials("Diese Materialien aus deinem Fachportal wurden gesucht und geklickt (~letze 30 Tage)", self.clicked_materials)
         return html.Div(
             children=[
                 html.Div(
@@ -319,18 +332,6 @@ class Collection:
                     className="info-row-1",
                     children=[
                         res_no_title,
-                        # TODO
-                        # html.Div(
-                        #     children=[
-                        #         html.P(
-                        #             f"Materialien ohne Lizenz ({len(fpm_data.no_license_container)}):"),
-                        #         html.Div(
-                        #             children=fpm_data.no_license_container,
-                        #             className="card"
-                        #         )
-                        #     ],
-                        #     className="card-box"
-                        # ),
                         res_no_license,
                         res_no_subject,
                         res_no_educontext,
@@ -393,7 +394,7 @@ class Collection:
         result: list[MissingInfo] = [self.parse_result(item, qtype) for item in r]
         return result
 
-    def parse_result(self, resource, qtype: Literal["collection", "resource", "license"]):
+    def parse_result(self, resource: dict, qtype: Literal["collection", "resource", "license"]):
         _id = resource.get("_source", {}).get("nodeRef", {}).get("id", None)
         name = resource.get("_source", {}).get("properties", {}).get("cm:name", None)
         title = resource.get("_source", {}).get("properties", {}).get("cclom:title", None)
@@ -412,7 +413,15 @@ class Collections:
     def __init__(self):
         self.collections: list[Collection] = self.get_collections()
         self.cards_for_index_page = self.build_cards_for_index_page() #cards for index page
-        self.pathnames = self.build_pathnames() # the pathnames e.g. "/physik"
+        self.pathnames: list[str] = self.build_pathnames() # the pathnames e.g. "/physik"
+        self.searched_materials_not_in_collections = oeh.searched_materials_by_collection.get("none")
+        self.searched_materials_not_in_collections_layout = Collection.build_searched_materials("Geklickte Materialien, die in keinem Fachportal liegen", self.searched_materials_not_in_collections) #searched_materials
+    
+    
+    def get_oeh_search_analytics(self):
+        oeh.get_oeh_search_analytics()
+        self.searched_materials_not_in_collections = oeh.searched_materials_by_collection.get("none")
+        self.searched_materials_not_in_collections_layout = Collection.build_searched_materials("Geklickte Materialien, die in keinem Fachportal liegen", self.searched_materials_not_in_collections) #searched_materials
 
     def build_pathnames(self):
         return ["/" + item.app_url for item in self.collections]
@@ -420,6 +429,24 @@ class Collections:
     def get_collections(self):
         collections = sorted([Collection(item) for item in EduSharing.get_collections()])
         return collections
+
+
+    def build_index_page(self):
+        index_page = html.Div(
+            children=[
+                html.Div(className="index-container",
+                        children=[
+                            *self.cards_for_index_page,
+                        ]),
+                html.Div(
+                    className="info-row-2",
+                    children=[
+                        self.searched_materials_not_in_collections_layout
+                        ]
+                    )
+                ]
+        )
+        return index_page
 
 
     def build_cards_for_index_page(self) -> list:

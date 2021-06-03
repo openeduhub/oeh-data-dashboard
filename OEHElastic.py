@@ -9,7 +9,7 @@ from typing import Generator, Literal
 
 import requests
 from dotenv import load_dotenv
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, client
 
 load_dotenv()
 
@@ -39,9 +39,6 @@ class EduSharing:
             params=params
         ).json().get("collections")
 
-        # if sort:
-        #     collections = sorted([Collection(item) for item in r_collections])
-        #     return collections
         return r_collections
 
 
@@ -54,12 +51,16 @@ class SearchedMaterialInfo:
     title: str = ""
     fps: set = field(default_factory=set)
 
-# # TODO Resour
-# @dataclass
-# class ResourceData:
-#     search_strings: list = field(default_factory=list)
-#     fps: set = field(default_factory=set)
-#     clicks: int = 0
+
+    def as_dict(self):
+        return {
+            "id": self._id,
+            # "search_strings": self.search_strings,
+            "clicks": self.clicks,
+            "name": self.name,
+            "title": self.title,
+            # "fps": self.fps
+        }
 
 
 SOURCE_FIELDS = [
@@ -76,7 +77,9 @@ class OEHElastic:
     def __init__(self, hosts=[os.getenv("ES_HOST", "localhost")]) -> None:
         self.es = Elasticsearch(hosts=hosts)
         self.last_timestamp = "now-30d" # get values for last 30 days by default
-        self.searched_materials_by_collection = self.get_oeh_search_analytics()
+        self.searched_materials_by_collection = {} # TODO maybe we can use a @property.setter method here?
+        
+        self.get_oeh_search_analytics(timestamp = self.last_timestamp, count=10000)
 
     def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
         must_conditions = [
@@ -207,7 +210,7 @@ class OEHElastic:
         return self.es.search(body=body, index="workspace", pretty=True)
 
 
-    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 500):
+    def get_oeh_search_analytics(self, timestamp: str=None, count: int = 10000):
         """
         Returns the oeh search analytics.
         """
@@ -221,12 +224,18 @@ class OEHElastic:
 
 
         if not timestamp:
-            timestamp = self.last_timestamp
+            gt_timestamp = self.last_timestamp
+            logging.info(f"searching with a gt timestamp of: {gt_timestamp}")
+        else:
+            gt_timestamp = timestamp
+            logging.info(f"searching with a given timestamp of: {gt_timestamp}")
+
         body = {
             "query": { 
                 "range": { 
                 "timestamp": { 
-                    "gt": timestamp
+                    "gt": gt_timestamp,
+                    "lt": "now"
                 } 
                 } 
             },
@@ -241,12 +250,19 @@ class OEHElastic:
         }
 
         r: list[dict] = self.es.search(body=body, index="oeh-search-analytics", pretty=True).get("hits", {}).get("hits", [])
-  
+
+        # set last timestamp to last timestamp from response
+        if len(r):
+            self.last_timestamp = r[0].get("_source", {}).get("timestamp")
+
         filtered_search_strings = filter_search_strings(r)
         search_counter = Counter(list(filtered_search_strings))
 
 
         def filter_for_terms_and_materials(res: list[dict]):
+            """
+            :param list[dict] res: result from elastic-search query
+            """
             terms_and_materials = defaultdict(list)
             materials_by_terms = defaultdict(SearchedMaterialInfo)
             filtered_res = (item for item in res if item.get("_source", {}).get("action", None) == "result_click")
@@ -264,6 +280,7 @@ class OEHElastic:
                     materials_by_terms[clicked_resource].fps.update(included_fps)
                     materials_by_terms[clicked_resource].name = name
                     materials_by_terms[clicked_resource].title = title
+                    materials_by_terms[clicked_resource]._id = clicked_resource
                     
                 materials_by_terms[clicked_resource].search_strings.update([search_string])
                 materials_by_terms[clicked_resource].clicks += 1
@@ -278,21 +295,22 @@ class OEHElastic:
 
         # assign material to fpm portals
         collections_by_material = defaultdict(list)
-        for key in materials_by_terms:
+        for key in materials_by_terms: #key is the material id
             if fps:=materials_by_terms[key].fps:
                 for fp in fps:
-                    m = materials_by_terms[key]
-                    material = SearchedMaterialInfo(
-                        _id=key,
-                        search_strings=m.search_strings,
-                        clicks=m.clicks,
-                        name=m.name,
-                        title=m.title
-                        )
-                    collections_by_material[fp].append(material)
+                    collections_by_material[fp].append(materials_by_terms[key])
+            else:
+                collections_by_material["none"].append(materials_by_terms[key])
 
-
-        return collections_by_material
+        # check if searched_materials_by_collection does already exist.
+        # in that case we only need to append new values to existing dictionary
+        if self.searched_materials_by_collection:
+            for key in collections_by_material:
+                # TODO putting new material at the beginning of the list might be improved
+                # it would be even better to look for the respective material and then append the search strings / update the Counter
+                self.searched_materials_by_collection[key] = collections_by_material[key] + self.searched_materials_by_collection[key]
+        else:
+            self.searched_materials_by_collection = collections_by_material
 
     def get_node_path(self, node_id) -> dict:
         """
@@ -317,7 +335,7 @@ class OEHElastic:
     def check_resource_in_fps(self, resource_id: str, collection_ids: list) -> list:
         try:
             hit: dict = self.get_node_path(resource_id).get("hits", {}).get("hits", [])[0]
-            paths = hit.get("_source").get("collections", [])[0].get("path", None)
+            paths = hit.get("_source").get("collections", [{}])[0].get("path", [])
             name = hit.get("_source").get("properties", {}).get("cm:name", None) # internal name
             title = hit.get("_source").get("properties", {}).get("cclom:title", None) # readable title
             included_fps = [path for path in paths if path in collection_ids]
@@ -325,8 +343,6 @@ class OEHElastic:
         except:
             return [], "", ""
 
-    
-    
 
 if __name__ == "__main__":
     oeh = OEHElastic()
@@ -336,7 +352,9 @@ if __name__ == "__main__":
 # ohne titel
     # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
     # pprint(oeh.get_oeh_search_analytics())
-    oeh.get_oeh_search_analytics()
+    oeh.get_oeh_search_analytics(count=200)
+    print("\n\n\n\n")
+    oeh.get_oeh_search_analytics(count=200)
     # ohne fachzuordnung
     # print(json.dumps(oeh.getMaterialByMissingAttribute("15fce411-54d9-467f-8f35-61ea374a298d", "properties.ccm:educationalcontext", 10), indent=4))
 # # ohne fachzuordnung

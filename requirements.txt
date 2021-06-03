@@ -3,3 +3,4 @@ elasticsearch
 elasticsearch-dsl
 requests
 python-dotenv
+pandas
