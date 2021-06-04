@@ -475,6 +475,6 @@ class Collections:
 if __name__ == "__main__":
     c = Collections()
     logging.info(c.collections)
-    c.collections[0].load_data()
+    c.collections[0].layout
 
 # %%
