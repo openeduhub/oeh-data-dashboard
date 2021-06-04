@@ -63,7 +63,7 @@ class Collection:
         self.collection_no_keywords: list[MissingInfo] = []
         self.collection_no_description: list[MissingInfo] = []
         self.quality_score: int = 0
-        self.layout = html.Div()
+        self._layout = None
 
 
     def __lt__(self, other):
@@ -73,8 +73,13 @@ class Collection:
     def __repr__(self):
         return self.name
 
+    @property
+    def layout(self):
+        return self._layout
 
-    def load_data(self):
+    @layout.getter
+    def layout(self):
+        logging.info("Setting layout...")
         self.clicked_materials: list[SearchedMaterialInfo] = oeh.searched_materials_by_collection.get(self._id, [])
         self.resources_total: int = self.get_resources_total()
         self.resources_no_licenses: list[MissingInfo] = self.get_missing_attribute(None, qtype="license")
@@ -86,7 +91,7 @@ class Collection:
         self.collection_no_keywords: list[MissingInfo] = self.get_missing_attribute("properties.cclom:general_keyword", qtype="collection")
         self.collection_no_description: list[MissingInfo] = self.get_missing_attribute("properties.cm:description", qtype="collection")
         self.quality_score = self.calc_quality_score()
-        self.layout = self.build_layout()
+        return self.build_layout()
 
 
     def calc_quality_score(self):

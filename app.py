@@ -50,7 +50,6 @@ def display_page(pathname):
         
         # TODO call get_search_analytics method to update search results
         C.get_oeh_search_analytics()
-        target_collection.load_data()
         return target_collection.layout
     else:
         C.get_oeh_search_analytics()
