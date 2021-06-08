@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Type, TypedDict
 
 import dash_core_components as dcc
 import dash_html_components as html
@@ -20,6 +20,12 @@ ES_PREVIEW_URL = "https://redaktion.openeduhub.net/edu-sharing/preview?maxWidth=
 
 oeh = OEHElastic()
 
+
+class Licenses(TypedDict):
+    oer: int
+    cc: int
+    copyright: int
+    missing: int
 
 @dataclass
 class MissingInfo:
@@ -43,8 +49,8 @@ class Collection:
     It is NOT a pendant to an edu-sharing collection!
     """
     def __init__(self, item: dict):
-        self.name: str = item.get("name", None)
-        self.title: str = item.get("title", None)
+        self.name: str = item.get("name", None) # internal name
+        self.title: str = item.get("title", None) # readable title
         self.iconURL: str = item.get("iconURL", "") # icon of edu-sharing collection
         self.url: str = item.get("content").get("url") # edu-sharing url of the collection
         self.app_url: str = self.make_url()
@@ -53,17 +59,16 @@ class Collection:
 
         self.clicked_materials: list[SearchedMaterialInfo] = oeh.searched_materials_by_collection.get(self._id, [])
 
-        self.resources_total: int = 0
-        self.licenses: dict = {}
-        self.resources_no_title_identifiers: list[MissingInfo] = []
+        self._resources_total: int = 0
+        self.licenses: Licenses = {}
+        self._resources_no_title_identifiers: list[MissingInfo] = []
         self.resources_no_subject_identifiers: list[MissingInfo] = []
         self.resources_no_educontext: list[MissingInfo] = []
-        self.resources_no_keywords: list[MissingInfo] = []
+        self._resources_no_keywords: list[MissingInfo] = []
         self.resources_no_licenses: list[MissingInfo] = []
         self.collection_no_keywords: list[MissingInfo] = []
         self.collection_no_description: list[MissingInfo] = []
         self.quality_score: int = 0
-        self._layout = None
 
 
     def __lt__(self, other):
@@ -73,6 +78,41 @@ class Collection:
     def __repr__(self):
         return self.name
 
+
+    def as_dict(self):
+        return {
+            "name": self.name,
+            "resources_total": self.resources_total,
+            "resources_no_title_identifiers": len(self.resources_no_title_identifiers),
+            "resources_no_keywords": len(self.resources_no_keywords),
+            "oer_licenes": self.licenses.get("oer")
+        }
+
+
+    @property
+    def resources_total(self):
+        return self._resources_total
+
+    @resources_total.getter
+    def resources_total(self):
+        return self.get_resources_total()
+
+    @property
+    def resources_no_title_identifiers(self):
+        return self._resources_no_title_identifiers
+
+    @resources_no_title_identifiers.getter
+    def resources_no_title_identifiers(self):
+        return self.get_missing_attribute("properties.cclom:title", qtype="resource")
+
+    @property
+    def resources_no_keywords(self):
+        return self._resources_no_keywords
+
+    @resources_no_keywords.getter
+    def resources_no_keywords(self):
+        return self.get_missing_attribute("properties.cclom:general_keyword", qtype="resource")
+
     @property
     def layout(self):
         return self._layout
@@ -81,13 +121,10 @@ class Collection:
     def layout(self):
         logging.info("Setting layout...")
         self.clicked_materials: list[SearchedMaterialInfo] = oeh.searched_materials_by_collection.get(self._id, [])
-        self.resources_total: int = self.get_resources_total()
         self.resources_no_licenses: list[MissingInfo] = self.get_missing_attribute(None, qtype="license")
         self.licenses: dict = self.get_licenses()
-        self.resources_no_title_identifiers: list[MissingInfo] = self.get_missing_attribute("properties.cclom:title", qtype="resource")
         self.resources_no_subject_identifiers: list[MissingInfo] = self.get_missing_attribute("properties.ccm:taxonid", qtype="resource")
         self.resources_no_educontext: list[MissingInfo] = self.get_missing_attribute("properties.ccm:educationalcontext", qtype="resource")
-        self.resources_no_keywords: list[MissingInfo] = self.get_missing_attribute("properties.cclom:general_keyword", qtype="resource")
         self.collection_no_keywords: list[MissingInfo] = self.get_missing_attribute("properties.cclom:general_keyword", qtype="collection")
         self.collection_no_description: list[MissingInfo] = self.get_missing_attribute("properties.cm:description", qtype="collection")
         self.quality_score = self.calc_quality_score()
@@ -123,28 +160,28 @@ class Collection:
         copyright_cols = ["COPYRIGHT_FREE",	"COPYRIGHT_LICENSE", "CUSTOM"]
         missing_cols = ["", "NONE", "UNTERRICHTS_UND_LEHRMEDIEN"]
 
-        licenses_sorted = {
-            "OER-Lizenz": 0,
-            "CC-Lizenz": 0,
-            "Copyright-Lizenz": 0,
-            "Fehlende Lizenz": 0
+        licenses_sorted: Licenses = {
+            "oer": 0,
+            "cc": 0,
+            "copyright": 0,
+            "missing": 0
         }
 
         for l in licenses:
             if l["key"] in oer_cols:
-                licenses_sorted["OER-Lizenz"] += l["doc_count"]
+                licenses_sorted["oer"] += l["doc_count"]
             elif l["key"] in cc_but_not_oer:
-                licenses_sorted["CC-Lizenz"] += l["doc_count"]
+                licenses_sorted["cc"] += l["doc_count"]
             elif l["key"] in copyright_cols:
-                licenses_sorted["Copyright-Lizenz"] += l["doc_count"]
+                licenses_sorted["copyright"] += l["doc_count"]
             elif l["key"] in missing_cols:
-                licenses_sorted["Fehlende Lizenz"] += l["doc_count"]
+                licenses_sorted["missing"] += l["doc_count"]
             else:
                 raise KeyError(f'Could not find {l["key"]} in columns.')
 
         # some licenses are not counted here, because the property "properties.ccm:commonlicense_key.keyword"
         # does not exist on these resources. We have to add them by a query to count missing attributes
-        licenses_sorted["Fehlende Lizenz"] = len(self.resources_no_licenses)
+        licenses_sorted["missing"] = len(self.resources_no_licenses)
 
         return licenses_sorted
 
@@ -194,7 +231,7 @@ class Collection:
         """
         Builds a licenses Dataframe with columns: OER, CC-Lizenz, Copyright-Lizenz and Fehlende Lizenz.
         """
-        labels = list(self.licenses.keys())
+        labels = ["OER", "CC-Lizenz", "Copyright-Lizenz", "Fehlende Lizenz"]
         sizes = list(self.licenses.values())
         pull = (0.1, 0, 0, 0)
 
@@ -421,7 +458,7 @@ class Collections:
         self.pathnames: list[str] = self.build_pathnames() # the pathnames e.g. "/physik"
         self.searched_materials_not_in_collections = oeh.searched_materials_by_collection.get("none")
         self.searched_materials_not_in_collections_layout = Collection.build_searched_materials("Geklickte Materialien, die in keinem Fachportal liegen", self.searched_materials_not_in_collections) #searched_materials
-    
+        self._admin_page_layout = None
     
     def get_oeh_search_analytics(self):
         oeh.get_oeh_search_analytics()
@@ -434,7 +471,6 @@ class Collections:
     def get_collections(self):
         collections = sorted([Collection(item) for item in EduSharing.get_collections()])
         return collections
-
 
     def build_index_page(self):
         index_page = html.Div(
@@ -471,6 +507,23 @@ class Collections:
                 )
             ])
         return index_links
+
+
+    @property
+    def admin_page_layout(self):
+        return self._admin_page_layout
+
+    @admin_page_layout.getter
+    def admin_page_layout(self):
+        # build dataframe
+        d = [c.as_dict() for c in self.collections]
+        df = pd.DataFrame(d)
+        return dash_table.DataTable(
+            id='table',
+            columns=[{"name": i, "id": i} for i in df.columns],
+            data=df.to_dict('records'),
+        )
+
 
 if __name__ == "__main__":
     c = Collections()

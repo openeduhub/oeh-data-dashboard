@@ -51,6 +51,8 @@ def display_page(pathname):
         # TODO call get_search_analytics method to update search results
         C.get_oeh_search_analytics()
         return target_collection.layout
+    elif pathname == "/admin":
+        return C.admin_page_layout
     else:
         C.get_oeh_search_analytics()
         index_page = C.build_index_page()

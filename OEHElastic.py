@@ -15,6 +15,8 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
+ES_PREVIEW_URL = "https://redaktion.openeduhub.net/edu-sharing/preview?maxWidth=200&maxHeight=200&crop=true&storeProtocol=workspace&storeId=SpacesStore&nodeId={}"
+
 
 class EduSharing:
     @staticmethod
@@ -49,16 +51,20 @@ class SearchedMaterialInfo:
     clicks: int = 0
     name: str = ""
     title: str = ""
+    crawler: str = ""
     fps: set = field(default_factory=set)
 
 
     def as_dict(self):
+        search_term_count = "Suchbegriff: \"{}\" ({})" # term, count
         return {
             "id": self._id,
-            # "search_strings": self.search_strings,
+            "search_strings": " ".join([search_term_count.format(term, count) for term, count in self.search_strings.items()]),
             "clicks": self.clicks,
             "name": self.name,
             "title": self.title,
+            "crawler": self.crawler,
+            "thumbnail_url": ES_PREVIEW_URL.format(self._id)
             # "fps": self.fps
         }
 
@@ -79,7 +85,7 @@ class OEHElastic:
         self.last_timestamp = "now-30d" # get values for last 30 days by default
         self.searched_materials_by_collection = {} # TODO maybe we can use a @property.setter method here?
         
-        self.get_oeh_search_analytics(timestamp = self.last_timestamp, count=10000)
+        self.get_oeh_search_analytics(timestamp = self.last_timestamp, count=100)
 
     def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
         must_conditions = [
@@ -276,10 +282,10 @@ class OEHElastic:
 
                 # build the object
                 if not materials_by_terms.get(clicked_resource, None):
-                    included_fps, name, title = self.check_resource_in_fps(clicked_resource, list(collections_ids_title.keys()))
-                    materials_by_terms[clicked_resource].fps.update(included_fps)
-                    materials_by_terms[clicked_resource].name = name
-                    materials_by_terms[clicked_resource].title = title
+                    result: SearchedMaterialInfo = self.get_resource_info(clicked_resource, list(collections_ids_title.keys()))
+                    materials_by_terms[clicked_resource].fps.update(result.fps)
+                    materials_by_terms[clicked_resource].name = result.name
+                    materials_by_terms[clicked_resource].title = result.title
                     materials_by_terms[clicked_resource]._id = clicked_resource
                     
                 materials_by_terms[clicked_resource].search_strings.update([search_string])
@@ -326,22 +332,27 @@ class OEHElastic:
             "_source": [
                 "properties.cclom:title",
                 "properties.cm:name",
-                "collections.path"
+                "collections.path",
+                "properties.ccm:replicationsource"
                 ]
         }
         return self.es.search(body=body, index="workspace", pretty=True)
 
 
-    def check_resource_in_fps(self, resource_id: str, collection_ids: list) -> list:
+    def get_resource_info(self, resource_id: str, collection_ids: list) -> SearchedMaterialInfo:
+        """
+        Gets info about a resource from elastic
+        """
         try:
             hit: dict = self.get_node_path(resource_id).get("hits", {}).get("hits", [])[0]
             paths = hit.get("_source").get("collections", [{}])[0].get("path", [])
             name = hit.get("_source").get("properties", {}).get("cm:name", None) # internal name
             title = hit.get("_source").get("properties", {}).get("cclom:title", None) # readable title
+            crawler = hit.get("_source").get("properties", {}).get("ccm:replicationsource", None)
             included_fps = [path for path in paths if path in collection_ids]
-            return included_fps, name, title
+            return SearchedMaterialInfo(resource_id, name=name, title=title, crawler=crawler, fps=included_fps)
         except:
-            return [], "", ""
+            return SearchedMaterialInfo()
 
 
 if __name__ == "__main__":
