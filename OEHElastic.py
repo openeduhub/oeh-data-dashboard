@@ -17,6 +17,16 @@ logging.basicConfig(level=logging.INFO)
 
 ES_PREVIEW_URL = "https://redaktion.openeduhub.net/edu-sharing/preview?maxWidth=200&maxHeight=200&crop=true&storeProtocol=workspace&storeId=SpacesStore&nodeId={}"
 
+@dataclass
+class Bucket:
+    key: str
+    doc_count: int
+
+    def as_dict(self):
+        return {
+            "key": self.key,
+            "doc_count": self.doc_count
+        }
 
 class EduSharing:
     @staticmethod
@@ -87,23 +97,27 @@ class OEHElastic:
         
         self.get_oeh_search_analytics(timestamp = self.last_timestamp, count=1000)
 
-    def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
+    def getBaseCondition(self, collection_id: str = None, additional_must: dict = None) -> dict:
         must_conditions = [
             {"terms": {"type": ['ccm:io']}},
             {"terms": {"permissions.read": ['GROUP_EVERYONE']}},
-            {"bool" : {
-                "should": [
-                    {"match": {"collections.path": collection_id }},
-                    {"match": {"collections.nodeRef.id": collection_id}},
-                ],
-                "minimum_should_match": 1
-            }
-            },
             {"terms": {"properties.cm:edu_metadataset": ['mds_oeh']}},
             {"terms": {"nodeRef.storeRef.protocol": ['workspace']}},
         ]
         if additional_must:
             must_conditions.append(additional_must)
+
+        if collection_id:
+            must_conditions.append(
+                {"bool" : {
+                    "should": [
+                        {"match": {"collections.path": collection_id }},
+                        {"match": {"collections.nodeRef.id": collection_id}},
+                    ],
+                    "minimum_should_match": 1
+                }
+                }
+            )
         return {
             "bool": {
                 "must": must_conditions
@@ -164,7 +178,7 @@ class OEHElastic:
 
     def getStatisicCounts(self, collection_id: str, attribute: str="properties.ccm:commonlicense_key.keyword") -> dict:
         """
-        Returns count of values for a given attribute (default: license)
+        Returns count of values for a given attribute (default: license) in a collection
         """
         body = {
             "query": {
@@ -355,6 +369,37 @@ class OEHElastic:
             return SearchedMaterialInfo()
 
 
+    def get_aggregations(self, attribute: str, collection_id:str = None):
+        """
+        Returns the aggregations for a given attribute.
+        """
+        body = {
+            "query": {
+                "bool": {
+                    "must": [
+                        self.getBaseCondition(collection_id),
+                    ]
+                }
+            },
+            "size": 0, 
+            "aggs": {
+                "my-agg": {
+                "terms": {
+                    "field": attribute,
+                    "size": 10000
+                }
+                }
+            }
+        }
+        r: dict = self.es.search(body=body, index="workspace", pretty=True)
+        
+        def build_buckets(buckets):
+            return [Bucket(b["key"], b["doc_count"]) for b in buckets]
+        
+        buckets: list[Bucket] = build_buckets(r.get("aggregations", {}).get("my-agg", {}).get("buckets", []))
+        return buckets
+
+
 if __name__ == "__main__":
     oeh = OEHElastic()
     print("\n\n\n\n")
@@ -363,9 +408,10 @@ if __name__ == "__main__":
 # ohne titel
     # print(json.dumps(oeh.getMaterialByMissingAttribute("4940d5da-9b21-4ec0-8824-d16e0409e629", "properties.ccm:commonlicense_key.keyword", 0), indent=4))
     # pprint(oeh.get_oeh_search_analytics())
-    oeh.get_oeh_search_analytics(count=200)
-    print("\n\n\n\n")
-    oeh.get_oeh_search_analytics(count=200)
+    # oeh.get_oeh_search_analytics(count=200)
+    # print("\n\n\n\n")
+    # oeh.get_oeh_search_analytics(count=200)
+    logging.info(oeh.get_aggregations(attribute="i18n.de_DE.ccm:educationallearningresourcetype.keyword"))
     # ohne fachzuordnung
     # print(json.dumps(oeh.getMaterialByMissingAttribute("15fce411-54d9-467f-8f35-61ea374a298d", "properties.ccm:educationalcontext", 10), indent=4))
 # # ohne fachzuordnung

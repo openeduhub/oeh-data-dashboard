@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 import pandas as pd
 
 from Constants import fpm_icons
-from OEHElastic import EduSharing, OEHElastic, SearchedMaterialInfo
+from OEHElastic import Bucket, EduSharing, OEHElastic, SearchedMaterialInfo
 
 logging.basicConfig(level=logging.INFO)
 
@@ -504,9 +504,7 @@ class Collections:
             ])
         return index_links
 
-
-    @property
-    def admin_page_layout(self):
+    def build_fp_overview(self):
         # build dataframe
         d = [c.as_dict() for c in self.collections]
         df = pd.DataFrame(d)
@@ -525,16 +523,66 @@ class Collections:
             "collection_no_description": "Sammlungen ohne Beschreibung"
         }, inplace=True)
 
-        return dash_table.DataTable(
+        data_table = dash_table.DataTable(
             id='table',
             columns=[{"name": i, "id": i} for i in df.columns],
             data=df.to_dict('records'),
+            sort_action="native"
         )
+        return html.Div(
+            className="info-row-2",
+            children=[
+                html.P("Übersicht Fachportale"),
+                data_table
+            ]
+        )
+
+
+    def build_data_table_for_agg(self, attribute: str, name: str):
+        agg = oeh.get_aggregations(
+            attribute=attribute)
+        d = [b.as_dict() for b in agg]
+        df = pd.DataFrame(d)
+        data_table = dash_table.DataTable(
+            id='table',
+            columns=[{"name": i, "id": i} for i in df.columns],
+            data=df.to_dict('records'),
+            sort_action="native"
+        )
+        return html.Div(
+            children=[
+                html.P(name),
+                data_table
+                ])
+
+
+    @property
+    def admin_page_layout(self):
+        fp_data_table = self.build_fp_overview()
+        lrt_data_table = self.build_data_table_for_agg(
+            attribute="i18n.de_DE.ccm:educationallearningresourcetype.keyword",
+            name="Learning Resource Typen")
+        widget_data_table = self.build_data_table_for_agg(
+            attribute="i18n.de_DE.ccm:oeh_widgets.keyword",
+            name="Widget Typen"
+            )
+
+
+        return html.Div(children=[
+            fp_data_table,
+            html.Div(
+                className="info-row-0",
+                children=[
+                    lrt_data_table,
+                    widget_data_table]
+            ),
+        ])
 
 
 if __name__ == "__main__":
     c = Collections()
     logging.info(c.collections)
     c.collections[0].layout
+    c.admin_page_layout
 
 # %%
