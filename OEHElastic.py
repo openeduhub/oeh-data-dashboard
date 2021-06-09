@@ -85,7 +85,7 @@ class OEHElastic:
         self.last_timestamp = "now-30d" # get values for last 30 days by default
         self.searched_materials_by_collection = {} # TODO maybe we can use a @property.setter method here?
         
-        self.get_oeh_search_analytics(timestamp = self.last_timestamp, count=100)
+        self.get_oeh_search_analytics(timestamp = self.last_timestamp, count=1000)
 
     def getBaseCondition(self, collection_id: str, additional_must: dict = None) -> dict:
         must_conditions = [

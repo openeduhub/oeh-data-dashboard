@@ -57,18 +57,19 @@ class Collection:
         self._id: str = item.get("properties").get("sys:node-uuid")[0]
         self.about: str = item.get("properties", {}).get("ccm:taxonid", [""])[0]
 
-        self.clicked_materials: list[SearchedMaterialInfo] = oeh.searched_materials_by_collection.get(self._id, [])
+        self.clicked_materials: list[SearchedMaterialInfo] = []
 
-        self._resources_total: int = 0
-        self.licenses: Licenses = {}
-        self._resources_no_title_identifiers: list[MissingInfo] = []
+        self.resources_total: int = 0
+        self.licenses: dict[Licenses] = {}
+        self.resources_no_title_identifiers: list[MissingInfo] = []
         self.resources_no_subject_identifiers: list[MissingInfo] = []
         self.resources_no_educontext: list[MissingInfo] = []
-        self._resources_no_keywords: list[MissingInfo] = []
+        self.resources_no_keywords: list[MissingInfo] = []
         self.resources_no_licenses: list[MissingInfo] = []
         self.collection_no_keywords: list[MissingInfo] = []
         self.collection_no_description: list[MissingInfo] = []
         self.quality_score: int = 0
+        self._layout = html.Div()
 
 
     def __lt__(self, other):
@@ -80,54 +81,45 @@ class Collection:
 
 
     def as_dict(self):
+        self.update_properties()
         return {
             "name": self.name,
+            "quality_score": self.quality_score,
+            "clicked_materials": len(self.clicked_materials),
             "resources_total": self.resources_total,
             "resources_no_title_identifiers": len(self.resources_no_title_identifiers),
+            "resources_no_subject_identifiers": len(self.resources_no_subject_identifiers),
+            "resources_no_educontext": len(self.resources_no_educontext),
             "resources_no_keywords": len(self.resources_no_keywords),
-            "oer_licenes": self.licenses.get("oer")
+            "oer_licenes": self.licenses.get("oer"),
+            "resources_no_licenses": len(self.resources_no_licenses),
+            "collection_no_keywords": len(self.collection_no_keywords),
+            "collection_no_description": len(self.collection_no_description)
         }
 
 
-    @property
-    def resources_total(self):
-        return self._resources_total
-
-    @resources_total.getter
-    def resources_total(self):
-        return self.get_resources_total()
-
-    @property
-    def resources_no_title_identifiers(self):
-        return self._resources_no_title_identifiers
-
-    @resources_no_title_identifiers.getter
-    def resources_no_title_identifiers(self):
-        return self.get_missing_attribute("properties.cclom:title", qtype="resource")
-
-    @property
-    def resources_no_keywords(self):
-        return self._resources_no_keywords
-
-    @resources_no_keywords.getter
-    def resources_no_keywords(self):
-        return self.get_missing_attribute("properties.cclom:general_keyword", qtype="resource")
-
-    @property
-    def layout(self):
-        return self._layout
-
-    @layout.getter
-    def layout(self):
-        logging.info("Setting layout...")
-        self.clicked_materials: list[SearchedMaterialInfo] = oeh.searched_materials_by_collection.get(self._id, [])
-        self.resources_no_licenses: list[MissingInfo] = self.get_missing_attribute(None, qtype="license")
-        self.licenses: dict = self.get_licenses()
-        self.resources_no_subject_identifiers: list[MissingInfo] = self.get_missing_attribute("properties.ccm:taxonid", qtype="resource")
-        self.resources_no_educontext: list[MissingInfo] = self.get_missing_attribute("properties.ccm:educationalcontext", qtype="resource")
+    def update_properties(self):
+        """
+        Updates relevant properties with es-queries.
+        """
+        self.clicked_materials = oeh.searched_materials_by_collection.get(self._id, [])
+        self.resources_total = self.get_resources_total()
+        self.resources_no_licenses = self.get_missing_attribute(None, qtype="license")
+        self.resources_no_educontext = self.get_missing_attribute("properties.ccm:educationalcontext", qtype="resource")
+        self.resources_no_subject_identifiers = self.get_missing_attribute("properties.ccm:taxonid", qtype="resource")
+        self.licenses = self.get_licenses()
+        self.resources_no_title_identifiers = self.get_missing_attribute("properties.cclom:title", qtype="resource")
+        self.resources_no_keywords = self.get_missing_attribute("properties.cclom:general_keyword", qtype="resource")
         self.collection_no_keywords: list[MissingInfo] = self.get_missing_attribute("properties.cclom:general_keyword", qtype="collection")
         self.collection_no_description: list[MissingInfo] = self.get_missing_attribute("properties.cm:description", qtype="collection")
         self.quality_score = self.calc_quality_score()
+
+
+    @property
+    def layout(self):
+        logging.info("update properties")
+        self.update_properties()
+        logging.info("Setting layout...")
         return self.build_layout()
 
 
@@ -273,6 +265,10 @@ class Collection:
         # return layout
         clicked_materials = []
         search_term_count = "Suchbegriff: \"{}\" ({})" # term, count
+        
+        if not materials:
+            return html.Div()
+        
         for material in materials:
             search_term_comprehension = " ".join([search_term_count.format(term, count) for term, count in material.search_strings.items()])
             clicked_materials.append(
@@ -458,7 +454,7 @@ class Collections:
         self.pathnames: list[str] = self.build_pathnames() # the pathnames e.g. "/physik"
         self.searched_materials_not_in_collections = oeh.searched_materials_by_collection.get("none")
         self.searched_materials_not_in_collections_layout = Collection.build_searched_materials("Geklickte Materialien, die in keinem Fachportal liegen", self.searched_materials_not_in_collections) #searched_materials
-        self._admin_page_layout = None
+        self._admin_page_layout = html.Div()
     
     def get_oeh_search_analytics(self):
         oeh.get_oeh_search_analytics()
@@ -511,13 +507,24 @@ class Collections:
 
     @property
     def admin_page_layout(self):
-        return self._admin_page_layout
-
-    @admin_page_layout.getter
-    def admin_page_layout(self):
         # build dataframe
         d = [c.as_dict() for c in self.collections]
         df = pd.DataFrame(d)
+        df.rename(columns={
+            "name": "Name",
+            "quality_score": "Qualitäts-Score",
+            "clicked_materials": "Geklickte Materialien aus FP",
+            "resources_total": "Materialien gesamt",
+            "resources_no_title_identifiers": "Materialien ohne Titel",
+            "resources_no_subject_identifiers": "Materialien ohne Fachzuordnung",
+            "resources_no_educontext": "Materialien ohne Bildungsstufe",
+            "resources_no_keywords": "Materialien ohne Schlagworte",
+            "oer_licenses": "Anzahl OER",
+            "resources_no_licenses": "Keine Lizenzangabe",
+            "collection_no_keywords": "Sammlungen ohne Schlagworte",
+            "collection_no_description": "Sammlungen ohne Beschreibung"
+        }, inplace=True)
+
         return dash_table.DataTable(
             id='table',
             columns=[{"name": i, "id": i} for i in df.columns],
