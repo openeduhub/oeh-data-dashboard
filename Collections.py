@@ -527,7 +527,8 @@ class Collections:
             id='table',
             columns=[{"name": i, "id": i} for i in df.columns],
             data=df.to_dict('records'),
-            sort_action="native"
+            sort_action="native",
+            style_table={'height': '300px', 'overflowY': 'auto'}
         )
         return html.Div(
             className="info-row-2",
@@ -547,7 +548,9 @@ class Collections:
             id='table',
             columns=[{"name": i, "id": i} for i in df.columns],
             data=df.to_dict('records'),
-            sort_action="native"
+            sort_action="native",
+            style_table={'height': '300px', 'overflowY': 'auto'},
+            export_format="xlsx"
         )
         return html.Div(
             children=[
@@ -556,9 +559,38 @@ class Collections:
                 ])
 
 
+    def build_data_table_crawler(self, name: str):
+        data = oeh.sort_searched_materials()
+        d = [b.as_dict() for b in data]
+        df = pd.DataFrame(d)
+        df = df[["title", "search_strings", "clicks", "crawler", "local_timestamp"]]
+        df.rename(columns={
+            "title": "Titel",
+            "clicks": "Klicks",
+            "search_strings": "Suchbegriffe",
+            "crawler": "Crawler",
+            "local_timestamp": "Letzter Click"
+        },inplace=True)
+        data_table = dash_table.DataTable(
+            id='table',
+            columns=[{"name": i, "id": i} for i in df.columns],
+            data=df.to_dict('records'),
+            sort_action="native",
+            style_table={'height': '300px', 'overflowY': 'auto'},
+            export_format="xlsx"
+        )
+        return html.Div(
+            className="info-row-2",
+            children=[
+                html.P(name),
+                data_table
+            ])
+
+
     @property
     def admin_page_layout(self):
-        fp_data_table = self.build_fp_overview()
+        logging.info("Build admin page...")
+        # fp_data_table = self.build_fp_overview()
         lrt_data_table = self.build_data_table_for_agg(
             attribute="i18n.de_DE.ccm:educationallearningresourcetype.keyword",
             name="Learning Resource Typen")
@@ -566,15 +598,28 @@ class Collections:
             attribute="i18n.de_DE.ccm:oeh_widgets.keyword",
             name="Widget Typen"
             )
+        creator_data_table = self.build_data_table_for_agg(
+            attribute="properties.cm:creator.keyword",
+            name="Uploads der FPs"
+        )
+        cralwer_data_table = self.build_data_table_crawler("Geklickte Materialien nach Quellen (letzte 30 Tage)")
 
 
         return html.Div(children=[
-            fp_data_table,
+            # fp_data_table,
+            cralwer_data_table,
+            html.Div(
+                className="info-row-1",
+                children=[
+                    creator_data_table,
+                ]
+            ),
             html.Div(
                 className="info-row-0",
                 children=[
                     lrt_data_table,
-                    widget_data_table]
+                    widget_data_table,
+                    ]
             ),
         ])
 

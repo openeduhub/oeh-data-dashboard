@@ -52,6 +52,7 @@ def display_page(pathname):
         C.get_oeh_search_analytics()
         return target_collection.layout
     elif pathname == "/admin":
+        C.get_oeh_search_analytics()
         return C.admin_page_layout
     else:
         C.get_oeh_search_analytics()
