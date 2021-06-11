@@ -4,10 +4,10 @@ services:
   wlo-data-analysis:
     build:
       context: .
+      network: host
     image: oehdatadashboard:latest
     container_name: wlo-data-analysis
-    ports:
-      - "8050:8050"
     environment:
       - ES_HOST=$ES_HOST
     restart: on-failure
+    network_mode: host

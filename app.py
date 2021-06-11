@@ -1,14 +1,18 @@
 import logging
+import os
+
+from dotenv import load_dotenv
+
 
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 
-from Collections import Collections
+from Collections import C
 
 logging.basicConfig(level=logging.INFO)
 
-C = Collections()
+load_dotenv()
 
 # app stuff
 external_stylesheets = [
@@ -61,4 +65,4 @@ def display_page(pathname):
 
 
 if __name__ == "__main__":
-    app.run_server(host="0.0.0.0", debug=True, port=8050)
+    app.run_server(host="0.0.0.0", debug=True, port=os.getenv("APP_PORT", 8050))

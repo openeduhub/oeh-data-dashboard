@@ -1,0 +1,13 @@
+.ipynb_checkpoints/
+__pycache__/
+.vscode/
+
+.venv/
+venv/
+
+.DS_Store
+
+.git
+
+test.json
+TODO.md

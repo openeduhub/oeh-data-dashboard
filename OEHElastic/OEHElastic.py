@@ -4,17 +4,17 @@ import json
 import logging
 import os
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
 from typing import Generator, Literal
-from datetime import datetime, timedelta
 from numpy import inf
 
 import requests
 from dotenv import load_dotenv
-from elasticsearch import Elasticsearch, client
+from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError
 
 from time import sleep
+
+from HelperClasses import SearchedMaterialInfo, Bucket
 
 load_dotenv()
 
@@ -30,16 +30,6 @@ SOURCE_FIELDS = [
     "properties.cm:name"
 ]
 
-@dataclass
-class Bucket:
-    key: str
-    doc_count: int
-
-    def as_dict(self):
-        return {
-            "key": self.key,
-            "doc_count": self.doc_count
-        }
 
 class EduSharing:
     @staticmethod
@@ -66,54 +56,6 @@ class EduSharing:
         ).json().get("collections")
 
         return r_collections
-
-
-@dataclass
-class SearchedMaterialInfo:
-    _id: str = ""
-    search_strings: Counter = field(default_factory=Counter)
-    clicks: int = 0
-    name: str = ""
-    title: str = ""
-    crawler: str = ""
-    creator: str = ""
-    timestamp: str = "" # timestamp of last access on material (utc)
-    fps: set = field(default_factory=set)
-
-
-    def __repr__(self) -> str:
-        return self._id
-
-    def __eq__(self, o: object) -> bool:
-        if isinstance(o, SearchedMaterialInfo):
-            return (self._id == o._id)
-        else:
-            return False
-
-
-    def __lt__(self, o: object):
-        return (self.timestamp < o.timestamp)
-
-
-    def __hash__(self) -> int:
-        return hash((self._id,))
-
-
-    def as_dict(self):
-        search_term_count = "\"{}\"({})" # term, count
-        return {
-            "id": self._id,
-            "search_strings": ", ".join([search_term_count.format(term, count) for term, count in self.search_strings.items()]),
-            "clicks": self.clicks,
-            "name": self.name,
-            "title": self.title,
-            "crawler": self.crawler,
-            "creator": self.creator,
-            "timestamp": self.timestamp,
-            "local_timestamp": (datetime.fromisoformat(self.timestamp[:-1]) + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S"),
-            "thumbnail_url": ES_PREVIEW_URL.format(self._id)
-            # "fps": self.fps
-        }
 
 
 class OEHElastic:
@@ -515,3 +457,6 @@ if __name__ == "__main__":
     oeh.get_oeh_search_analytics(count=200)
     oeh.get_oeh_search_analytics(count=200)
     oeh.sort_searched_materials()
+
+else:
+    oeh = OEHElastic()

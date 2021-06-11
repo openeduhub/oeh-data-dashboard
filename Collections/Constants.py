@@ -17,5 +17,10 @@ fpm_icons = {
     "Religion": "./assets/_svg/Religion.svg",
     "Spanisch": "./assets/_svg/Spanisch.svg",
     "Sport": "./assets/_svg/Sport.svg",
-    "Türkisch": "./assets/_svg/Türkisch.svg"
+    "Türkisch": "./assets/_svg/Tuerkisch.svg"
 }
+
+# CONSTANTS
+ES_COLLECTION_URL = "https://redaktion.openeduhub.net/edu-sharing/components/collections?id={}"
+ES_NODE_URL = "https://redaktion.openeduhub.net/edu-sharing/components/render/{}?action={}"
+ES_PREVIEW_URL = "https://redaktion.openeduhub.net/edu-sharing/preview?maxWidth=200&maxHeight=200&crop=true&storeProtocol=workspace&storeId=SpacesStore&nodeId={}"
