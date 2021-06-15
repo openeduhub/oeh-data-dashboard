@@ -18,10 +18,21 @@ from HelperClasses import SearchedMaterialInfo, Bucket
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+
+def set_conn_retries():
+    MAX_CONN_RETRIES = os.getenv("MAX_CONN_RETRIES", float(inf))
+    if MAX_CONN_RETRIES == "inf":
+        return float(inf)
+    else:
+        if type(eval(MAX_CONN_RETRIES)) == int:
+            return eval(MAX_CONN_RETRIES)
+        else:
+            raise TypeError(f"MAX_CONN_RETRIES: {eval(MAX_CONN_RETRIES)} is not an integer")
+
+MAX_CONN_RETRIES = set_conn_retries()
 ES_PREVIEW_URL = "https://redaktion.openeduhub.net/edu-sharing/preview?maxWidth=200&maxHeight=200&crop=true&storeProtocol=workspace&storeId=SpacesStore&nodeId={}"
-
 SOURCE_FIELDS = [
     "nodeRef",
     "type",
@@ -29,11 +40,12 @@ SOURCE_FIELDS = [
     "properties.cclom:title",
     "properties.cm:name"
 ]
-
+ANALYTICS_INITIAL_COUNT = int(os.getenv("ANALYTICS_INITIAL_COUNT", 10000))
 
 class EduSharing:
-    @staticmethod
-    def get_collections():
+    connection_retries: int = 0
+    @classmethod
+    def get_collections(cls):
         ES_COLLECTIONS_URL = "https://redaktion.openeduhub.net/edu-sharing/rest/collection/v1/collections/local/5e40e372-735c-4b17-bbf7-e827a5702b57/children/collections?scope=TYPE_EDITORIAL&skipCount=0&maxItems=1247483647&sortProperties=cm%3Acreated&sortAscending=true&"
 
         headers = {
@@ -48,18 +60,27 @@ class EduSharing:
             "sortAscending": "true"
         }
 
-        logging.info(f"Collecting Collections from edu-sharing...")
-        r_collections: list = requests.get(
-            ES_COLLECTIONS_URL,
-            headers=headers,
-            params=params
-        ).json().get("collections")
+        logger.info(f"Collecting Collections from edu-sharing...")
 
-        return r_collections
+        try:
+            r_collections: list = requests.get(
+                ES_COLLECTIONS_URL,
+                headers=headers,
+                params=params
+            ).json().get("collections")
+            cls.connection_retries = 0
+            return r_collections
+
+        except:
+            if cls.connection_retries < MAX_CONN_RETRIES:
+                cls.connection_retries += 1
+                logger.error(f"Connection error trying to reach edu-sharing repository, trying again in 30 seconds. Retries: {cls.connection_retries}")
+                sleep(30)
+                return EduSharing.get_collections()
+
 
 
 class OEHElastic:
-
     es: Elasticsearch
 
     def __init__(self, hosts=[os.getenv("ES_HOST", "localhost")]) -> None:
@@ -69,18 +90,18 @@ class OEHElastic:
         self.searched_materials_by_collection = {} # dict with collections as keys and a list of Searched Material Info as values
         self.all_searched_materials: set[SearchedMaterialInfo] = set() 
 
-        self.get_oeh_search_analytics(timestamp = self.last_timestamp, count=1000)
+        self.get_oeh_search_analytics(timestamp=self.last_timestamp, count=ANALYTICS_INITIAL_COUNT)
 
 
     def query_elastic(self, body, index, pretty):
         try:
-            self.connection_retries = 0
             r = self.es.search(body=body, index=index, pretty=pretty)
+            self.connection_retries = 0
             return r
         except ConnectionError:
-            if self.connection_retries < float(inf): # TODO put a number here?
+            if self.connection_retries < MAX_CONN_RETRIES:
                 self.connection_retries += 1
-                logging.error(f"Connection error, trying again in 30 seconds")
+                logger.error(f"Connection error while trying to reach elastic instance, trying again in 30 seconds. Retries {self.connection_retries}")
                 sleep(30)
                 return self.query_elastic(body, index, pretty)
 
@@ -140,7 +161,7 @@ class OEHElastic:
             "track_total_hits": True
         }
         # print(body)
-        return self.es.search(body=body, index="workspace", pretty=True)
+        return self.query_elastic(body=body, index="workspace", pretty=True)
 
 
     def getMaterialByMissingAttribute(self, collection_id: str, attribute: str, count: int=10000) -> dict:
@@ -162,7 +183,7 @@ class OEHElastic:
             "track_total_hits": True
         }
         # pprint(body)
-        return self.es.search(body=body, index="workspace", pretty=True)
+        return self.query_elastic(body=body, index="workspace", pretty=True)
 
     def getStatisicCounts(self, collection_id: str, attribute: str="properties.ccm:commonlicense_key.keyword") -> dict:
         """
@@ -187,7 +208,7 @@ class OEHElastic:
             "track_total_hits": True
         }
         # print(body)
-        return self.es.search(body=body, index="workspace", pretty=True)
+        return self.query_elastic(body=body, index="workspace", pretty=True)
 
 
     def get_material_by_condition(self, collection_id: str, condition: Literal["missing_license"] = None, count=10000) -> dict:
@@ -215,7 +236,7 @@ class OEHElastic:
             "track_total_hits": True
         }
         # print(body)
-        return self.es.search(body=body, index="workspace", pretty=True)
+        return self.query_elastic(body=body, index="workspace", pretty=True)
 
 
     def get_oeh_search_analytics(self, timestamp: str=None, count: int = 10000):
@@ -233,10 +254,10 @@ class OEHElastic:
 
         if not timestamp:
             gt_timestamp = self.last_timestamp
-            logging.info(f"searching with a gt timestamp of: {gt_timestamp}")
+            logger.info(f"searching with a gt timestamp of: {gt_timestamp}")
         else:
             gt_timestamp = timestamp
-            logging.info(f"searching with a given timestamp of: {gt_timestamp}")
+            logger.info(f"searching with a given timestamp of: {gt_timestamp}")
 
         body = {
             "query": { 
@@ -291,17 +312,17 @@ class OEHElastic:
                 search_string: str = item.get("searchString", "")
 
                 # we got to check the FPs for the given resource
-                logging.info(f"checking included fps for resource id: {clicked_resource}")
+                logger.info(f"checking included fps for resource id: {clicked_resource}")
 
                 # build the object
                 if not clicked_resource in self.all_searched_materials:
-                    logging.info(f"{clicked_resource} not present, creating entry, getting info...")
+                    logger.info(f"{clicked_resource} not present, creating entry, getting info...")
                     result: SearchedMaterialInfo = self.get_resource_info(clicked_resource._id, list(collections_ids_title.keys()))
                     result.timestamp = timestamp
                     result.search_strings.update([search_string])
                     self.all_searched_materials.add(result)
                 else:
-                    logging.info(f"{clicked_resource!r} present, updating...")
+                    logger.info(f"{clicked_resource!r} present, updating...")
                     old = next(e for e in self.all_searched_materials if e == clicked_resource)
                     # check for newest timestamp
                     new_timestamp = check_timestamp(timestamp, old.timestamp)
@@ -357,7 +378,7 @@ class OEHElastic:
                 "properties.cm:creator"
                 ]
         }
-        return self.es.search(body=body, index="workspace", pretty=True)
+        return self.query_elastic(body=body, index="workspace", pretty=True)
 
 
     def get_resource_info(self, resource_id: str, collection_ids: list) -> SearchedMaterialInfo:
@@ -387,29 +408,33 @@ class OEHElastic:
             return SearchedMaterialInfo()
 
 
-    def get_aggregations(self, attribute: str, collection_id:str = None):
+    def get_aggregations(self, attribute: str, collection_id:str = None, index:str = "workspace", size: int = 10000):
         """
         Returns the aggregations for a given attribute.
         """
-        body = {
+        must_condition = {
             "query": {
                 "bool": {
                     "must": [
                         self.getBaseCondition(collection_id),
                     ]
                 }
-            },
+            }
+        }
+        body = {
             "size": 0, 
             "aggs": {
                 "my-agg": {
                 "terms": {
                     "field": attribute,
-                    "size": 10000
+                    "size": size
                 }
                 }
             }
         }
-        r: dict = self.es.search(body=body, index="workspace", pretty=True)
+        if index == "workspace":
+            body.update(must_condition)
+        r: dict = self.es.search(body=body, index=index, pretty=True)
         
         def build_buckets(buckets):
             return [Bucket(b["key"], b["doc_count"]) for b in buckets]
@@ -430,24 +455,6 @@ class OEHElastic:
             key=lambda x: x.timestamp,
             reverse=True)
         return sorted_search
-
-
-    def get_material_creators(self):
-        # make a general aggregation query method and combine with crawler method
-        # by aggregation query?
-        # GET workspace/_search
-        # {
-        #     "size": 0,
-        #     "aggs": {
-        #         "my-agg": {
-        #             "terms": {
-        #                 "field": "properties.cm:creator.keyword",
-        #                 "size": 10000
-        #             }
-        #         }
-        #     }
-        # }
-        pass
 
 
 if __name__ == "__main__":

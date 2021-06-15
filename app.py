@@ -8,9 +8,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 
-from Collections import C
-
-logging.basicConfig(level=logging.INFO)
+from Collections.Collections import C
 
 load_dotenv()
 
@@ -48,21 +46,19 @@ app.layout = html.Div([
 @ app.callback(
     dash.dependencies.Output('page-content', 'children'),
     dash.dependencies.Input('url', 'pathname'))
-def display_page(pathname):
+def display_page(pathname: str):
+    C.get_oeh_search_analytics()
     if pathname in C.pathnames:
         target_collection = next(collection for collection in C.collections if collection.app_url == pathname.removeprefix("/"))
-        
-        # TODO call get_search_analytics method to update search results
-        C.get_oeh_search_analytics()
         return target_collection.layout
     elif pathname == "/admin":
-        C.get_oeh_search_analytics()
         return C.admin_page_layout
     else:
-        C.get_oeh_search_analytics()
         index_page = C.build_index_page()
         return index_page
 
 
 if __name__ == "__main__":
+    import logging.config
+    logging.basicConfig(level=logging.INFO)
     app.run_server(host="0.0.0.0", debug=True, port=os.getenv("APP_PORT", 8050))

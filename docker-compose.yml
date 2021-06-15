@@ -9,5 +9,10 @@ services:
     container_name: wlo-data-analysis
     environment:
       - ES_HOST=$ES_HOST
+      - MAX_CONN_RETRIES=$MAX_CONN_RETRIES
+      - APP_PORT=$APP_PORT
+      - ANALYTICS_INITIAL_COUNT=$ANALYTICS_INITIAL_COUNT
+    ports:
+      - 8050:8050
     restart: on-failure
-    network_mode: host
+    # network_mode: host # turn on when running on linux machine

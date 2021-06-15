@@ -1,4 +1,3 @@
-# TODO I guess the pythonic way would be putting this in a class
 fpm_icons = {
     "Biologie": "./assets/_svg/Biologie.svg",
     "Chemie": "./assets/_svg/Chemie.svg",

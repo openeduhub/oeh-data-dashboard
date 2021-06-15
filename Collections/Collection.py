@@ -1,7 +1,15 @@
-from OEHElastic.OEHElastic import oeh
-import dash_html_components as html
+import logging
+from typing import Literal
 
-from HelperClasses import SearchedMaterialInfo, Licenses, MissingInfo
+import dash_core_components as dcc
+import dash_html_components as html
+import plotly.graph_objects as go
+from HelperClasses import Licenses, MissingInfo, SearchedMaterialInfo
+from OEHElastic.OEHElastic import oeh
+
+from .Constants import ES_NODE_URL, ES_PREVIEW_URL
+
+logger = logging.getLogger(__name__)
 
 class Collection:
     """
@@ -84,9 +92,9 @@ class Collection:
 
     @property
     def layout(self):
-        logging.info("update properties")
+        logger.info("update properties")
         self.update_properties()
-        logging.info("Setting layout...")
+        logger.info("Setting layout...")
         return self.build_layout()
 
     def calc_quality_score(self):
@@ -106,7 +114,7 @@ class Collection:
                 score += ((1 - (len(item) / self.resources_total)) /
                           len(score_items))
             except ZeroDivisionError:
-                logging.error(
+                logger.error(
                     f"Zero Division Error with Collection: {self.name}")
                 return 0
 
@@ -155,9 +163,7 @@ class Collection:
             "hits", {}).get("total", {}).get("value", 0)
         return r
 
-    # TODO add a flag
-    # if resource return render url
-    # if collection return query url
+
     def build_link_container(self, list_of_values: list[MissingInfo]):
         container = []
         for i in list_of_values:

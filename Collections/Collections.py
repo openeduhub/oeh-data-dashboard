@@ -1,21 +1,15 @@
 import logging
-from dataclasses import dataclass, field
-from typing import Literal, Type, TypedDict
 
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
 import pandas as pd
-import plotly.graph_objects as go
-from OEHElastic import EduSharing, OEHElastic, 
+from OEHElastic import oeh, EduSharing
 
 from .Collection import Collection
 from .Constants import fpm_icons
 
-from OEHElastic.OEHElastic import oeh
-
-logging.basicConfig(level=logging.INFO)
-
+logger = logging.getLogger(__name__)
 
 class Collections:
     def __init__(self):
@@ -109,9 +103,11 @@ class Collections:
         )
 
 
-    def build_data_table_for_agg(self, attribute: str, name: str):
+    def build_data_table_for_agg(self, attribute: str, name: str, index: str = "workspace", size: int = 10000):
         agg = oeh.get_aggregations(
-            attribute=attribute)
+            attribute=attribute,
+            index=index,
+            size=size)
         d = [b.as_dict() for b in agg]
         df = pd.DataFrame(d)
         data_table = dash_table.DataTable(
@@ -159,8 +155,8 @@ class Collections:
 
     @property
     def admin_page_layout(self):
-        logging.info("Build admin page...")
-        # fp_data_table = self.build_fp_overview()
+        logger.info("Build admin page...")
+        fp_data_table = self.build_fp_overview()
         lrt_data_table = self.build_data_table_for_agg(
             attribute="i18n.de_DE.ccm:educationallearningresourcetype.keyword",
             name="Learning Resource Typen")
@@ -172,12 +168,19 @@ class Collections:
             attribute="properties.cm:creator.keyword",
             name="Uploads der FPs"
         )
+        most_searched_term_data_table = self.build_data_table_for_agg(
+            attribute="searchString.keyword",
+            name="Meist gesuchter Begriff",
+            index="oeh-search-analytics",
+            size=1000
+        )
         cralwer_data_table = self.build_data_table_crawler("Geklickte Materialien nach Quellen (letzte 30 Tage)")
 
 
         return html.Div(children=[
-            # fp_data_table,
+            fp_data_table,
             cralwer_data_table,
+            most_searched_term_data_table,
             html.Div(
                 className="info-row-1",
                 children=[
@@ -196,7 +199,7 @@ class Collections:
 
 if __name__ == "__main__":
     C = Collections()
-    logging.info(C.collections)
+    logger.info(C.collections)
     C.collections[0].layout
     C.admin_page_layout
 

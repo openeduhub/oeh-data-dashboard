@@ -27,7 +27,6 @@ class Bucket:
         }
 
 
-
 @dataclass
 class MissingInfo:
     _id: str
@@ -84,5 +83,4 @@ class SearchedMaterialInfo:
             "timestamp": self.timestamp,
             "local_timestamp": (datetime.fromisoformat(self.timestamp[:-1]) + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S"),
             "thumbnail_url": ES_PREVIEW_URL.format(self._id)
-            # "fps": self.fps
         }
