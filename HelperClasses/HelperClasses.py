@@ -26,6 +26,12 @@ class Bucket:
             "doc_count": self.doc_count
         }
 
+    def as_wc(self):
+        return {
+            "text": self.key,
+            "value": self.doc_count
+        }
+
 
 @dataclass
 class MissingInfo:

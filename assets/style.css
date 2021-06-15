@@ -241,3 +241,7 @@ body {
 #pie-chart {
   object-fit: contain;
 }
+
+#wc > div > svg {
+  margin: auto;
+}

@@ -411,6 +411,7 @@ class OEHElastic:
     def get_aggregations(self, attribute: str, collection_id:str = None, index:str = "workspace", size: int = 10000):
         """
         Returns the aggregations for a given attribute.
+        Return is a list of dicts with keys: key, doc_count
         """
         must_condition = {
             "query": {

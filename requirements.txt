@@ -4,3 +4,4 @@ elasticsearch-dsl
 requests
 python-dotenv
 pandas
+./custom_packages/dash_react_wc-0.0.1.tar.gz

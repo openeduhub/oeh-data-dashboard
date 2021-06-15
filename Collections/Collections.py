@@ -2,14 +2,17 @@ import logging
 
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_react_wc
 import dash_table
 import pandas as pd
-from OEHElastic import oeh, EduSharing
+from HelperClasses import Bucket
+from OEHElastic import EduSharing, oeh
 
 from .Collection import Collection
 from .Constants import fpm_icons
 
 logger = logging.getLogger(__name__)
+
 
 class Collections:
     def __init__(self):
@@ -32,9 +35,35 @@ class Collections:
         collections = sorted([Collection(item) for item in EduSharing.get_collections()])
         return collections
 
+    def build_wordcloud(self) -> dash_react_wc:
+        """
+        Returns an array of dicts(keys: text, value) to build the wordcloud
+        """
+        words: list[Bucket] = oeh.get_aggregations(
+            attribute="searchString.keyword",
+            index="oeh-search-analytics",
+            size=50)
+        wc_words: list[dict] = [item.as_wc() for item in words]
+        options = {
+            "rotationAngles": [0, 0],
+            "rotations": 0,
+            "fontSizes": [18, 64]
+        }
+        wc = dash_react_wc.DashReactWc(
+            id='wc',
+            label='wlo-wc',
+            words=wc_words,
+            options=options
+        )
+        return wc
+        
+        
+
     def build_index_page(self):
+        wc = self.build_wordcloud()
         index_page = html.Div(
             children=[
+                wc,
                 html.Div(className="index-container",
                         children=[
                             *self.cards_for_index_page,
