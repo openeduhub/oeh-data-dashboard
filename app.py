@@ -61,4 +61,4 @@ def display_page(pathname: str):
 if __name__ == "__main__":
     import logging.config
     logging.basicConfig(level=logging.INFO)
-    app.run_server(host="0.0.0.0", debug=True, port=os.getenv("APP_PORT", 8050))
+    app.run_server(host="0.0.0.0", debug=eval(os.getenv("DEBUG", True)), port=os.getenv("APP_PORT", 8050))
