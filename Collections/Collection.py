@@ -25,7 +25,7 @@ class Collection:
         self.url: str = item.get("content").get(
             "url")  # edu-sharing url of the collection
         self.app_url: str = self.make_url()
-        self._id: str = item.get("properties").get("sys:node-uuid")[0]
+        self._id: str = item.get("properties").get("sys:node-uuid", [])[0]
         self.about: str = item.get(
             "properties", {}).get("ccm:taxonid", [""])[0]
 
@@ -40,6 +40,7 @@ class Collection:
         self.resources_no_licenses: list[MissingInfo] = []
         self.collection_no_keywords: list[MissingInfo] = []
         self.collection_no_description: list[MissingInfo] = []
+        self.collections_no_content: list = []
         self.quality_score: int = 0
         self._layout = html.Div()
 
@@ -88,6 +89,7 @@ class Collection:
             "properties.cclom:general_keyword", qtype="collection")
         self.collection_no_description: list[MissingInfo] = self.get_missing_attribute(
             "properties.cm:description", qtype="collection")
+        self.collections_no_content = oeh.collections_by_fachportale(fachportal_key=(self._id))
         self.quality_score = self.calc_quality_score()
 
     @property
@@ -164,7 +166,8 @@ class Collection:
         return r
 
 
-    def build_link_container(self, list_of_values: list[MissingInfo]):
+    @classmethod
+    def build_link_container(cls, list_of_values: list[MissingInfo]):
         container = []
         for i in list_of_values:
             container.append(
@@ -211,7 +214,8 @@ class Collection:
 
         return fig
 
-    def build_missing_info_card(self, title: str, attribute: list):
+    @classmethod
+    def build_missing_info_card(cls, title: str, attribute: list):
         """
         Returns a div with the infos for missing resources.
         """
@@ -220,7 +224,7 @@ class Collection:
                 html.P(
                     f"{title} ({len(attribute)}):"),
                 html.Div(
-                    children=self.build_link_container(attribute),
+                    children=cls.build_link_container(attribute),
                     className="card"
                 )
             ],
@@ -298,6 +302,9 @@ class Collection:
             "Sammlungen ohne Schlagworte", self.collection_no_keywords)
         coll_no_description = self.build_missing_info_card(
             "Sammlung ohne Beschreibungstext", self.collection_no_description)
+        coll_no_content = self.build_missing_info_card(
+            "Sammlungen ohne Inhalt", self.collections_no_content
+        )
         searched_materials = self.build_searched_materials(
             "Diese Materialien aus deinem Fachportal wurden gesucht und geklickt (~letze 30 Tage)", self.clicked_materials)
         return html.Div(
@@ -372,20 +379,7 @@ class Collection:
                     children=[
                         coll_no_description,
                         coll_no_keywords,
-
-                        # TODO
-                        # html.Div(
-                        #     children=[
-                        #         html.P(
-                        #             f"Sammlungen ohne Materialien ({len(fpm_data.no_resources_in_collection_container)}):"),
-                        #         html.Div(
-                        #             children=fpm_data.no_resources_in_collection_container,
-                        #             className="card"
-                        #         )
-                        #     ],
-                        #     className="card-box"
-                        # ),
-
+                        coll_no_content,
                     ]
                 ),
                 html.Div(

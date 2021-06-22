@@ -1,12 +1,10 @@
 import logging
 import os
 
-from dotenv import load_dotenv
-
-
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+from dotenv import load_dotenv
 
 from Collections.Collections import C
 
@@ -53,6 +51,8 @@ def display_page(pathname: str):
         return target_collection.layout
     elif pathname == "/admin":
         return C.admin_page_layout
+    elif pathname == "/empty_fp":
+        return C.empty_collections_layout
     else:
         index_page = C.build_index_page()
         return index_page

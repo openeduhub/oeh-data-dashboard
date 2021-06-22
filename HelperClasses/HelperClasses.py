@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -31,6 +30,15 @@ class Bucket:
             "text": self.key,
             "value": self.doc_count
         }
+    
+    def __eq__(self, o) -> bool:
+        if self.key == o:
+            return True
+        else:
+            return False
+
+    def __hash__(self) -> int:
+        return hash((self.key,))
 
 
 @dataclass
@@ -40,6 +48,7 @@ class MissingInfo:
     title: str = ""
     _type: str = ""
     action: str = ""
+    doc_count: int = 0
     es_url: str = field(init=False)
 
     def __post_init__(self):
@@ -47,6 +56,15 @@ class MissingInfo:
             self.es_url = ES_COLLECTION_URL.format(self._id)
         else:
             self.es_url = ES_NODE_URL.format(self._id, self.action)
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, MissingInfo):
+            return (self._id == o._id)
+        else:
+            return False
+
+    def __hash__(self) -> int:
+        return hash((self._id,))
 
 
 @dataclass

@@ -225,13 +225,24 @@ class Collections:
             ),
         ])
 
+    @property
+    def empty_collections_layout(self):
+        empty_fp = oeh.collections_by_fachportale(fachportal_key=None)
+        children = []
+        for key in empty_fp:
+            title = next((item.title for item in C.collections if item._id == key), "None")
+            layout = Collection.build_missing_info_card(title=title, attribute=empty_fp[key])
+            children.append(layout)
+        return html.Div(
+            className="info-row-1",
+            children=children
+            )
+
 
 if __name__ == "__main__":
     C = Collections()
     logger.info(C.collections)
     C.collections[0].layout
     C.admin_page_layout
-
-# %%
 else:
     C = Collections()
