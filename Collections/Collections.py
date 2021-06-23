@@ -5,7 +5,7 @@ import dash_html_components as html
 import dash_react_wc
 import dash_table
 import pandas as pd
-from HelperClasses import Bucket
+from HelperClasses import Bucket, Slider
 from OEHElastic import EduSharing, oeh
 
 from .Collection import Collection
@@ -225,18 +225,47 @@ class Collections:
             ),
         ])
 
+    def get_empty_fp_overview(self, doc_threshold: int = 0):
+        children = []
+        empty_fp = oeh.collections_by_fachportale(
+            fachportal_key=None,
+            doc_threshold=doc_threshold,
+            collection_ids = [collection._id for collection in self.collections]
+            )
+        for key in empty_fp:
+            title = next(
+                (item.title for item in C.collections if item._id == key), "None")
+            layout = Collection.build_missing_info_card(
+                title=title, attribute=empty_fp[key])
+            children.append(layout)
+        return children
+
     @property
     def empty_collections_layout(self):
-        empty_fp = oeh.collections_by_fachportale(fachportal_key=None)
-        children = []
-        for key in empty_fp:
-            title = next((item.title for item in C.collections if item._id == key), "None")
-            layout = Collection.build_missing_info_card(title=title, attribute=empty_fp[key])
-            children.append(layout)
+        # add slider
+        slider = html.Div([
+            dcc.Slider(
+                id="my-slider-all-fp",
+                min=0,
+                max=10,
+                step=1,
+                value=0,
+                marks={i: '{}'.format(i) for i in range(11)}
+            ),
+            html.Div(id='slider-output-container')
+        ])
         return html.Div(
-            className="info-row-1",
-            children=children
-            )
+            children=[
+                html.H1("Sammlungen ohne Inhalte"),
+                slider,
+                html.Div(
+                    className="info-row-1",
+                    id="empty-fp-output",
+                    children=self.get_empty_fp_overview()
+                )
+            ]
+        )
+        
 
 
 if __name__ == "__main__":

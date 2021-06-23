@@ -95,13 +95,19 @@ class OEHElastic:
         self.get_oeh_search_analytics(
             timestamp=self.last_timestamp, count=ANALYTICS_INITIAL_COUNT)
 
-    def collections_by_fachportale(self, fachportal_key: str = None, doc_threshold: int = 0):
+    def collections_by_fachportale(
+        self,
+        fachportal_key: str = None,
+        doc_threshold: int = 0,
+        collection_ids: list = []
+        ):
         """
         Returns a dict of Fachportal-IDs as keys and a list of collection ids as values
         if there is no material present in that collection.
 
         :param fachportal_key: ID of the Fachportal
         """
+        logger.info(f"getting collections with threshold of {doc_threshold} and key: {fachportal_key}")
         def check_for_resources_in_subcollection(collection_id: str):
             body = {
                 "query": {
@@ -133,7 +139,7 @@ class OEHElastic:
             r = self.query_elastic(body=body, index="workspace")
             total_hits = r.get("hits").get("total").get("value")
 
-            if total_hits:
+            if total_hits <= doc_threshold:
                 return True
             else:
                 return False
@@ -150,7 +156,7 @@ class OEHElastic:
                 doc_count = next((bucket.doc_count for bucket in buckets if bucket == _id), 0)
                 if doc_count <= doc_threshold:
                     # check if there is content in subcollections
-                    if check_for_resources_in_subcollection(_id) is False:
+                    if check_for_resources_in_subcollection(_id):
                         res.add(MissingInfo(_id=_id, title=title, doc_count=doc_count, _type="ccm:map"))
             return res
 
@@ -162,7 +168,7 @@ class OEHElastic:
         else:
             present_collections: dict[str, set[MissingInfo]] = {}
 
-            for key in self.searched_materials_by_collection:
+            for key in collection_ids:
                 # for each fp portal query es for all of its collections
                 r_collection_children = self.get_collection_children_by_id(key)
                 collection_children: set[MissingInfo] = build_missing_info(r_collection_children.get("hits", {}).get("hits", []))

@@ -2,9 +2,10 @@ import logging
 from typing import Literal
 
 import dash_core_components as dcc
+from dash_core_components.Loading import Loading
 import dash_html_components as html
 import plotly.graph_objects as go
-from HelperClasses import Licenses, MissingInfo, SearchedMaterialInfo
+from HelperClasses import Licenses, MissingInfo, SearchedMaterialInfo, Slider
 from OEHElastic.OEHElastic import oeh
 
 from .Constants import ES_NODE_URL, ES_PREVIEW_URL
@@ -41,6 +42,7 @@ class Collection:
         self.collection_no_keywords: list[MissingInfo] = []
         self.collection_no_description: list[MissingInfo] = []
         self.collections_no_content: list = []
+        self._coll_no_content_layout = html.Div()
         self.quality_score: int = 0
         self._layout = html.Div()
 
@@ -91,6 +93,21 @@ class Collection:
             "properties.cm:description", qtype="collection")
         self.collections_no_content = oeh.collections_by_fachportale(fachportal_key=(self._id))
         self.quality_score = self.calc_quality_score()
+
+    def get_coll_no_content_layout(self, doc_threshold: int = 0):
+        self.collections_no_content = oeh.collections_by_fachportale(
+            fachportal_key=(self._id), doc_threshold=doc_threshold)
+        slider_config = Slider(_id="slider-"+(self._id),
+                            min=0, max=10, step=1, value=doc_threshold)
+
+        title = "Sammlungen ohne Inhalt"
+        layout = self.build_missing_info_card(
+            title=title,
+            attribute=self.collections_no_content,
+            slider_config=slider_config,
+            className=""
+        )
+        return layout
 
     @property
     def layout(self):
@@ -215,20 +232,44 @@ class Collection:
         return fig
 
     @classmethod
-    def build_missing_info_card(cls, title: str, attribute: list):
+    def build_missing_info_card(
+        cls,
+        title: str,
+        attribute: list, 
+        slider_config: Slider = None,
+        className: str = "card-box"
+        ):
         """
         Returns a div with the infos for missing resources.
         """
-        return html.Div(
-            children=[
+        children = [
+            html.P(
+                children=f"{title} ({len(attribute)}):"),
+            dcc.Loading
+            (html.Div(
+                children=cls.build_link_container(attribute),
+                className="card"
+            ))
+        ]
+        if slider_config:
+            slider = html.Div([
                 html.P(
-                    f"{title} ({len(attribute)}):"),
-                html.Div(
-                    children=cls.build_link_container(attribute),
-                    className="card"
+                    f"Zeige Sammlungen mit {slider_config.value} oder weniger Inhalten",
+                    className="slider"
+                    ),
+                dcc.Slider(
+                    id="my-slider",
+                    min=slider_config.min,
+                    max=slider_config.max,
+                    step=slider_config.step,
+                    value=slider_config.value,
+                    marks=slider_config.marks
                 )
-            ],
-            className="card-box"
+            ])
+            children.insert(1, slider)
+        return html.Div(
+            children=children,
+            className=className,
         )
 
     @classmethod
@@ -302,9 +343,6 @@ class Collection:
             "Sammlungen ohne Schlagworte", self.collection_no_keywords)
         coll_no_description = self.build_missing_info_card(
             "Sammlung ohne Beschreibungstext", self.collection_no_description)
-        coll_no_content = self.build_missing_info_card(
-            "Sammlungen ohne Inhalt", self.collections_no_content
-        )
         searched_materials = self.build_searched_materials(
             "Diese Materialien aus deinem Fachportal wurden gesucht und geklickt (~letze 30 Tage)", self.clicked_materials)
         return html.Div(
@@ -379,7 +417,10 @@ class Collection:
                     children=[
                         coll_no_description,
                         coll_no_keywords,
-                        coll_no_content,
+                        html.Div(
+                            id="coll-no-content-container",
+                            className="card-box",
+                            children=self.get_coll_no_content_layout())
                     ]
                 ),
                 html.Div(

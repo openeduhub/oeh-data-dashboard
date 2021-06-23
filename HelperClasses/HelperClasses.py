@@ -7,6 +7,19 @@ from Collections.Constants import (ES_COLLECTION_URL, ES_NODE_URL,
                                    ES_PREVIEW_URL)
 
 
+
+@dataclass
+class Slider:
+    _id: str
+    min: int
+    max: int
+    step: int
+    value: int
+    marks: dict = field(init=False)
+
+    def __post_init__(self):
+        self.marks = {i: '{}'.format(i) for i in range(self.max+1)}
+
 class Licenses(TypedDict):
     oer: int
     cc: int

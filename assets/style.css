@@ -14,6 +14,8 @@ body {
 .card-box a:visited{
     color:#8eaed1;
 }
+
+.card-box > div > p,
 .card-box > p,
 .card-box > h3{
     padding: 2px 15px;
@@ -32,6 +34,12 @@ body {
     height: 40px;
     object-fit: cover;
 }
+.slider {
+  padding: 2px 15px;
+  text-align: left;
+  color: #555;
+}
+
 .header {
   background-color: #003B7C;
   height: 256px;

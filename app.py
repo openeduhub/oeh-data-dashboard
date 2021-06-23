@@ -30,14 +30,10 @@ app.layout = html.Div([
             id="loading-1",
             type="graph",
             fullscreen=True,
-            children=[
-                html.Div(
-                    id="loading-output-1",
-                    children=[html.Div(id='page-content')])
-                ]
+            children=[html.Div(id='page-content')]
             )
-        ]
-    )
+           ]
+        )
 
 
 # Update the index
@@ -56,6 +52,23 @@ def display_page(pathname: str):
     else:
         index_page = C.build_index_page()
         return index_page
+
+
+@app.callback(
+    dash.dependencies.Output('coll-no-content-container', 'children'),
+    dash.dependencies.Input('my-slider', 'value'),
+    dash.dependencies.Input('url', 'pathname'), prevent_initial_call=True)
+def update_output(value, pathname: str):
+    target_collection = next(
+        collection for collection in C.collections if collection.app_url == pathname.removeprefix("/")
+        )
+    return target_collection.get_coll_no_content_layout(doc_threshold=int(value))
+
+@app.callback(
+    dash.dependencies.Output('empty-fp-output', 'children'),
+    dash.dependencies.Input('my-slider-all-fp', 'value'), prevent_initial_call=True)
+def update_empty_fp_overview(value):
+    return C.get_empty_fp_overview(doc_threshold=int(value))
 
 
 if __name__ == "__main__":
