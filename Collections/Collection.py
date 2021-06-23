@@ -252,9 +252,13 @@ class Collection:
             ))
         ]
         if slider_config:
+            if slider_config.value == 0:
+                p_string = f"Zeige Sammlungen mit {slider_config.value} Inhalten"
+            else:
+                p_string = f"Zeige Sammlungen mit {slider_config.value} oder weniger Inhalten"
             slider = html.Div([
                 html.P(
-                    f"Zeige Sammlungen mit {slider_config.value} oder weniger Inhalten",
+                    p_string,
                     className="slider"
                     ),
                 dcc.Slider(
