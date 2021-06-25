@@ -13,6 +13,8 @@ from elasticsearch.exceptions import ConnectionError
 from HelperClasses import Bucket, MissingInfo, SearchedMaterialInfo
 from numpy import inf
 
+import pandas as pd
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -145,8 +147,9 @@ class OEHElastic:
                 return False
 
         def build_missing_info(r: list[dict]) -> MissingInfo:
-            buckets = self.get_aggregations(
+            agg = self.get_aggregations(
                 attribute="collections.nodeRef.id.keyword")
+            buckets = oeh.build_buckets_from_agg(agg)
             res = set()
             for item in r:
                 _id = item.get("_source").get("nodeRef").get("id")
@@ -522,10 +525,16 @@ class OEHElastic:
         except:
             return SearchedMaterialInfo()
 
-    def get_aggregations(self, attribute: str, collection_id: str = None, index: str = "workspace", size: int = 10000):
+    def get_aggregations(
+        self,
+        attribute: str,
+        collection_id: str = None,
+        index: str = "workspace",
+        size: int = 10000,
+        agg_type: Literal["terms", "missing"] = "terms"
+        ) -> dict:
         """
         Returns the aggregations for a given attribute.
-        Return is a list of dicts with keys: key, doc_count
         """
         must_condition = {
             "query": {
@@ -536,27 +545,60 @@ class OEHElastic:
                 }
             }
         }
+        if agg_type == "terms":
+            agg = {"terms": {
+                "field": attribute,
+                "size": size
+            }}
+        elif agg_type == "missing":
+            agg = {
+                "missing": {
+                    "field": attribute
+                }
+            }
+        else:
+            raise ValueError(f"agg_type: {agg_type} is not allowed. Use one of [\"terms\", \"missing\"]")
+
         body = {
             "size": 0,
             "aggs": {
-                "my-agg": {
-                    "terms": {
-                        "field": attribute,
-                        "size": size
-                    }
-                }
+                "my-agg": agg
             }
         }
         if index == "workspace":
             body.update(must_condition)
-        r: dict = self.es.search(body=body, index=index, pretty=True)
+        
+        r: dict = self.query_elastic(body=body, index=index, pretty=True)
 
+        return r
+
+    def build_buckets_from_agg(self, agg: dict, include_other: bool = False) -> list[Bucket]:
+        """
+        Builds the buckets from an aggregation query.
+        Return is a list of dicts with keys: key, doc_count
+        """
         def build_buckets(buckets):
             return [Bucket(b["key"], b["doc_count"]) for b in buckets]
 
+        my_agg = agg.get("aggregations", {}).get("my-agg", {})
         buckets: list[Bucket] = build_buckets(
-            r.get("aggregations", {}).get("my-agg", {}).get("buckets", []))
+            my_agg.get("buckets", []))
+
+        if include_other:
+            other_count: int = my_agg.get("sum_other_doc_count")
+            other_bucket = Bucket("other_doc_count", other_count)
+            buckets.append(other_bucket)
         return buckets
+
+    def get_doc_count_from_missing_agg(self, agg:dict) -> Bucket:
+        doc_count = agg.get("aggregations", {}).get("my-agg", {}).get("doc_count", None)
+        bucket = Bucket("missing", doc_count)
+        return bucket
+
+    def build_df_from_buckets(self, buckets) -> pd.DataFrame:
+        d = [b.as_dict() for b in buckets]
+        df = pd.DataFrame(d)
+        return df
 
     def sort_searched_materials(self) -> list[SearchedMaterialInfo]:
         """

@@ -39,11 +39,12 @@ class Collections:
         """
         Returns an array of dicts(keys: text, value) to build the wordcloud
         """
-        words: list[Bucket] = oeh.get_aggregations(
+        words_agg: list[Bucket] = oeh.get_aggregations(
             attribute="searchString.keyword",
             index="oeh-search-analytics",
             size=50)
-        wc_words: list[dict] = [item.as_wc() for item in words]
+        words_buckets = oeh.build_buckets_from_agg(words_agg)
+        wc_words: list[dict] = [item.as_wc() for item in words_buckets]
         options = {
             "rotationAngles": [0, 0],
             "rotations": 0,
@@ -137,8 +138,8 @@ class Collections:
             attribute=attribute,
             index=index,
             size=size)
-        d = [b.as_dict() for b in agg]
-        df = pd.DataFrame(d)
+        agg_buckets = oeh.build_buckets_from_agg(agg)
+        df = oeh.build_df_from_buckets(agg_buckets)
         data_table = dash_table.DataTable(
             id='table',
             columns=[{"name": i, "id": i} for i in df.columns],
@@ -203,6 +204,7 @@ class Collections:
             index="oeh-search-analytics",
             size=1000
         )
+
         cralwer_data_table = self.build_data_table_crawler("Geklickte Materialien nach Quellen (letzte 30 Tage)")
 
 

@@ -7,6 +7,7 @@ import dash_html_components as html
 from dotenv import load_dotenv
 
 from Collections.Collections import C
+from OEHElastic.attribute_distribution import layout as attr_layout
 
 load_dotenv()
 
@@ -49,6 +50,8 @@ def display_page(pathname: str):
         return C.admin_page_layout
     elif pathname == "/empty_fp":
         return C.empty_collections_layout
+    elif pathname == "/attributes":
+        return attr_layout
     else:
         index_page = C.build_index_page()
         return index_page
@@ -62,7 +65,8 @@ def update_output(value, pathname: str):
     target_collection = next(
         collection for collection in C.collections if collection.app_url == pathname.removeprefix("/")
         )
-    return target_collection.get_coll_no_content_layout(doc_threshold=int(value))
+    target_collection.doc_threshold = int(value)
+    return target_collection.get_coll_no_content_layout()
 
 @app.callback(
     dash.dependencies.Output('empty-fp-output', 'children'),

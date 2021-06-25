@@ -41,7 +41,8 @@ class Collection:
         self.resources_no_licenses: list[MissingInfo] = []
         self.collection_no_keywords: list[MissingInfo] = []
         self.collection_no_description: list[MissingInfo] = []
-        self.collections_no_content: list = []
+        self.doc_threshold: int = 0
+        # self._collections_no_content: list = []
         self._coll_no_content_layout = html.Div()
         self.quality_score: int = 0
         self._layout = html.Div()
@@ -91,14 +92,16 @@ class Collection:
             "properties.cclom:general_keyword", qtype="collection")
         self.collection_no_description: list[MissingInfo] = self.get_missing_attribute(
             "properties.cm:description", qtype="collection")
-        self.collections_no_content = oeh.collections_by_fachportale(fachportal_key=(self._id))
+        
         self.quality_score = self.calc_quality_score()
 
-    def get_coll_no_content_layout(self, doc_threshold: int = 0):
-        self.collections_no_content = oeh.collections_by_fachportale(
-            fachportal_key=(self._id), doc_threshold=doc_threshold)
+    @property 
+    def collections_no_content(self):
+        return oeh.collections_by_fachportale(fachportal_key=(self._id), doc_threshold=self.doc_threshold)
+
+    def get_coll_no_content_layout(self):
         slider_config = Slider(_id="slider-"+(self._id),
-                            min=0, max=10, step=1, value=doc_threshold)
+                            min=0, max=10, step=1, value=self.doc_threshold)
 
         title = "Sammlungen ohne Inhalt"
         layout = self.build_missing_info_card(
