@@ -195,19 +195,37 @@ class Collection:
                     children=[
                         html.P(
                             children=[
-                                html.A(
+                                html.Div(
                                     children=[
                                         html.Div(
                                             children=[
                                                 html.Span(
                                                     f"{i.title if i.title else i.name}"),
+                                                html.A(
+                                                    children=[
+                                                        html.I(
+                                                            "open_in_new",
+                                                            className="material-icons"
+                                                        )
+                                                    ],
+                                                    href=f"{i.content_url}",
+                                                    target="_blank",
+                                                ) if i.content_url else None,
+                                                html.A(
+                                                    children=[
+                                                        html.I(
+                                                            "edit" if i.content_url else "open_in_new",
+                                                            className="material-icons"
+                                                        )
+                                                    ],
+                                                    href=f"{i.es_url}",
+                                                    target="_blank",
+                                                ),
                                                 html.Img(
                                                     src=ES_PREVIEW_URL.format(i._id)),
                                             ]
                                         )
-                                    ],
-                                    href=f"{i.es_url}",
-                                    target="_blank"
+                                    ]
                                 )
                             ]
                         )
@@ -469,12 +487,14 @@ class Collection:
             "properties", {}).get("cm:name", None)
         title = resource.get("_source", {}).get(
             "properties", {}).get("cclom:title", None)
+        content_url = resource.get("_source", {}).get(
+            "properties", {}).get("ccm:wwwurl", None)
         _type = resource.get("_source", {}).get("type", None)
         # action hint for edu-sharing to open dialog
         action = "OPTIONS.EDIT"
         if qtype == "license":
             action = "OPTIONS.LICENSE"
-        return MissingInfo(_id, name, title, _type, action)
+        return MissingInfo(_id = _id, name = name, title = title, _type = _type, action = action, content_url = content_url)
 
     def make_url(self):
         return self.name.lower().replace(" ", "-").replace("ü", "ue")

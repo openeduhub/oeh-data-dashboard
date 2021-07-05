@@ -39,6 +39,7 @@ SOURCE_FIELDS = [
     "type",
     "preview",
     "properties.cclom:title",
+    "properties.ccm:wwwurl",
     "properties.cm:name"
 ]
 ANALYTICS_INITIAL_COUNT = eval(os.getenv("ANALYTICS_INITIAL_COUNT", 10000))
@@ -154,7 +155,6 @@ class OEHElastic:
             for item in r:
                 _id = item.get("_source").get("nodeRef").get("id")
                 title = item.get("_source").get("properties").get("cm:title")
-
                 # check if a corresponding collection is in buckets and add doc count from there
                 doc_count = next((bucket.doc_count for bucket in buckets if bucket == _id), 0)
                 if doc_count <= doc_threshold:
@@ -508,6 +508,8 @@ class OEHElastic:
                 "cm:name", None)  # internal name
             title = hit.get("_source").get("properties", {}).get(
                 "cclom:title", None)  # readable title
+            content_url = hit.get("_source").get("properties", {}).get(
+                "ccm:wwwurl", None) # Source page url
             crawler = hit.get("_source").get("properties", {}).get(
                 "ccm:replicationsource", None)
             creator = hit.get("_source").get("properties", {}).get(
@@ -519,6 +521,7 @@ class OEHElastic:
                 title=title,
                 clicks=1,
                 crawler=crawler,
+                content_url=content_url,
                 creator=creator,
                 fps=included_fps
             )
