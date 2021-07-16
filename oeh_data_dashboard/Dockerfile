@@ -6,6 +6,5 @@ RUN pip install -r requirements.txt
 EXPOSE 8050
 EXPOSE 9200
 WORKDIR /
-RUN ls
 
 CMD [ "python", "-m", "oeh_data_dashboard"]

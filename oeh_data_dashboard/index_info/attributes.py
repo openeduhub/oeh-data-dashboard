@@ -10,7 +10,8 @@ class Attribute:
     df: pd.DataFrame = None
     graph: dcc.Graph = None
 
-attributes = [
+
+relevant_attributes = [
     Attribute("thumbnail", "properties.ccm:thumbnailurl.keyword"),
     Attribute("learning resource type", "i18n.de_DE.ccm:educationallearningresourcetype.keyword"),
     Attribute("duration", "properties.cclom:duration.keyword"),

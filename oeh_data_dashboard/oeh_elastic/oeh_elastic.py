@@ -86,7 +86,9 @@ class EduSharing:
 class OEHElastic:
     es: Elasticsearch
 
-    def __init__(self, hosts=[os.getenv("ES_HOST", "localhost")]) -> None:
+    def __init__(self, hosts=None) -> None:
+        if hosts is None:
+            hosts = [os.getenv("ES_HOST", "localhost")]
         self.connection_retries = 0
         self.es = Elasticsearch(hosts=hosts)
         self.last_timestamp = "now-30d"  # get values for last 30 days by default
@@ -111,6 +113,7 @@ class OEHElastic:
         :param doc_threshold: Threshold of documents to be at least in a collection
         """
         logger.info(f"getting collections with threshold of {doc_threshold} and key: {fachportal_key}")
+
         def check_for_resources_in_subcollection(collection_id: str):
             body = {
                 "query": {
@@ -511,7 +514,7 @@ class OEHElastic:
                 "ccm:replicationsource", None)
             creator = hit.get("_source").get("properties", {}).get(
                 "cm:creator", None)
-            included_fps = [path for path in paths if path in collection_ids]
+            included_fps = {path for path in paths if path in collection_ids}
             return SearchedMaterialInfo(
                 resource_id,
                 name=name,
@@ -614,11 +617,8 @@ class OEHElastic:
         return sorted_search
 
 
+oeh = OEHElastic()
+
 if __name__ == "__main__":
-    oeh = OEHElastic()
     print("\n\n\n\n")
-
     oeh.collections_by_fachportale
-
-else:
-    oeh = OEHElastic()

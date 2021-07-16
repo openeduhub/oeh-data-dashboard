@@ -6,9 +6,7 @@ import dash_core_components as dcc
 import plotly.express as px
 
 
-import pandas as pd
-
-from oeh_data_dashboard.index_info.attributes import attributes
+from oeh_data_dashboard.index_info.attributes import relevant_attributes
 from oeh_data_dashboard.oeh_elastic import oeh
 
 
@@ -27,6 +25,7 @@ def build_attribute_df(attributes: list[Attribute]):
         attribute.graph = build_graph_from_df(attribute)
     return attributes
 
+
 def build_graph_from_df(attribute: Attribute):
     fig = px.bar(attribute.df, x="key", y="doc_count")
     fig.update_layout(
@@ -35,16 +34,14 @@ def build_graph_from_df(attribute: Attribute):
     graph = dcc.Graph(id=f"{attribute.name}", figure=fig)
     return graph
 
-def build_layout(attributes):
+
+def build_layout(attributes: list[Attribute]):
     layout = []
     for attribute in attributes:
         layout.append(html.Div(attribute.graph))
     return layout
 
-# plot it
-if __name__ == "__main__":
-    attributes = build_attribute_df(attributes)
-    layout = build_layout(attributes)
-else:
-    attributes = build_attribute_df(attributes)
-    layout = build_layout(attributes)
+
+attributes = build_attribute_df(relevant_attributes)
+layout = build_layout(relevant_attributes)
+

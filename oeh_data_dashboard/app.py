@@ -67,6 +67,7 @@ def update_output(value, pathname: str):
     target_collection.doc_threshold = int(value)
     return target_collection.get_coll_no_content_layout()
 
+
 @app.callback(
     dash.dependencies.Output('empty-fp-output', 'children'),
     dash.dependencies.Input('my-slider-all-fp', 'value'), prevent_initial_call=True)

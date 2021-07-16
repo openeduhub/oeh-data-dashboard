@@ -267,13 +267,12 @@ class FachportalIndex:
                 )
             ]
         )
-        
 
+
+F = FachportalIndex()
 
 if __name__ == "__main__":
-    F = FachportalIndex()
+
     logger.info(F.collections)
     F.collections[0].layout
     F.admin_page_layout
-else:
-    F = FachportalIndex()
