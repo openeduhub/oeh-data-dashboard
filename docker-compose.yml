@@ -3,7 +3,7 @@ services:
 
   wlo-data-analysis:
     build:
-      context: .
+      context: ./oeh_data_dashboard
       network: host
     image: oehdatadashboard:latest
     container_name: wlo-data-analysis

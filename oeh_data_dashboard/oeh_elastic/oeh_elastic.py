@@ -10,7 +10,7 @@ import requests
 from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError
-from HelperClasses import Bucket, MissingInfo, SearchedMaterialInfo
+from oeh_data_dashboard.helper_classes import Bucket, MissingInfo, SearchedMaterialInfo
 from numpy import inf
 
 import pandas as pd
@@ -105,9 +105,10 @@ class OEHElastic:
         ):
         """
         Returns a dict of Fachportal-IDs as keys and a list of collection ids as values
-        if there is no material present in that collection.
+        if there is no material present in that collection (or less than the threshold value).
 
         :param fachportal_key: ID of the Fachportal
+        :param doc_threshold: Threshold of documents to be at least in a collection
         """
         logger.info(f"getting collections with threshold of {doc_threshold} and key: {fachportal_key}")
         def check_for_resources_in_subcollection(collection_id: str):
@@ -178,7 +179,6 @@ class OEHElastic:
                 present_collections[key] = collection_children
             return dict(sorted(present_collections.items()))
 
-
     def query_elastic(self, body, index, pretty: bool = True):
         try:
             r = self.es.search(body=body, index=index, pretty=pretty)
@@ -191,7 +191,6 @@ class OEHElastic:
                     f"Connection error while trying to reach elastic instance, trying again in 30 seconds. Retries {self.connection_retries}")
                 sleep(30)
                 return self.query_elastic(body, index, pretty)
-
 
     def getBaseCondition(self, collection_id: str = None, additional_must: dict = None) -> dict:
         must_conditions = [
@@ -220,7 +219,7 @@ class OEHElastic:
             }
         }
 
-    def getCollectionByMissingAttribute(self, collection_id: str, attribute: str, count: int = 10000) -> dict:
+    def getCollectionByMissingAttribute(self, collection_id: str, attribute: str, size: int = 10000) -> dict:
         """
         Returns an es-query-result with collections that have a given missing attribute.
         If count is set to 0, only the total number will be returned.
@@ -244,7 +243,7 @@ class OEHElastic:
                 }
             },
             "_source": SOURCE_FIELDS,
-            "size": count,
+            "size": size,
             "track_total_hits": True
         }
         # print(body)
@@ -276,7 +275,7 @@ class OEHElastic:
         return self.query_elastic(body=body, index="workspace", pretty=True)
 
 
-    def getMaterialByMissingAttribute(self, collection_id: str, attribute: str, count: int = 10000) -> dict:
+    def getMaterialByMissingAttribute(self, collection_id: str, attribute: str, size: int = 10000) -> dict:
         """
         Returns the es-query result for a given collection_id and the attribute.
         If count is set to 0, just the total number will be returned in the es-query-result.
@@ -291,7 +290,7 @@ class OEHElastic:
                 }
             },
             "_source": SOURCE_FIELDS,
-            "size": count,
+            "size": size,
             "track_total_hits": True
         }
         # pprint(body)

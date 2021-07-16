@@ -5,20 +5,20 @@ import dash_html_components as html
 import dash_react_wc
 import dash_table
 import pandas as pd
-from HelperClasses import Bucket, Slider
-from OEHElastic import EduSharing, oeh
+from oeh_data_dashboard.helper_classes import Bucket
+from oeh_data_dashboard.oeh_elastic import EduSharing, oeh
 
-from .Collection import Collection
-from .Constants import fpm_icons
+from .fachportal import Fachportal
+from .constants import fpm_icons
 
 logger = logging.getLogger(__name__)
 
 
-class Collections:
+class FachportalIndex:
     def __init__(self):
-        self.collections: list[Collection] = self.get_collections()
-        self.cards_for_index_page = self.build_cards_for_index_page() #cards for index page
-        self.pathnames: list[str] = self.build_pathnames() # the pathnames e.g. "/physik"
+        self.collections: list[Fachportal] = self.get_collections()
+        self.cards_for_index_page = self.build_cards_for_index_page()  # cards for index page
+        self.pathnames: list[str] = self.build_pathnames()  # the pathnames e.g. "/physik"
         self.searched_materials_not_in_collections = oeh.searched_materials_by_collection.get("none")
         self.searched_materials_not_in_collections_layout = html.Div()
         self._admin_page_layout = html.Div()
@@ -26,13 +26,13 @@ class Collections:
     def get_oeh_search_analytics(self):
         oeh.get_oeh_search_analytics()
         self.searched_materials_not_in_collections = oeh.searched_materials_by_collection.get("none")
-        self.searched_materials_not_in_collections_layout = Collection.build_searched_materials("Geklickte Materialien, die in keinem Fachportal liegen (~letzte 30 Tage)", self.searched_materials_not_in_collections) #searched_materials
+        self.searched_materials_not_in_collections_layout = Fachportal.build_searched_materials("Geklickte Materialien, die in keinem Fachportal liegen (~letzte 30 Tage)", self.searched_materials_not_in_collections) #searched_materials
 
     def build_pathnames(self):
         return ["/" + item.app_url for item in self.collections]
 
     def get_collections(self):
-        collections = sorted([Collection(item) for item in EduSharing.get_collections()])
+        collections = sorted([Fachportal(item) for item in EduSharing.get_collections()])
         return collections
 
     def build_wordcloud(self) -> dash_react_wc:
@@ -236,8 +236,8 @@ class Collections:
             )
         for key in empty_fp:
             title = next(
-                (item.title for item in C.collections if item._id == key), "None")
-            layout = Collection.build_missing_info_card(
+                (item.title for item in F.collections if item._id == key), "None")
+            layout = Fachportal.build_missing_info_card(
                 title=title, attribute=empty_fp[key])
             children.append(layout)
         return children
@@ -271,9 +271,9 @@ class Collections:
 
 
 if __name__ == "__main__":
-    C = Collections()
-    logger.info(C.collections)
-    C.collections[0].layout
-    C.admin_page_layout
+    F = FachportalIndex()
+    logger.info(F.collections)
+    F.collections[0].layout
+    F.admin_page_layout
 else:
-    C = Collections()
+    F = FachportalIndex()
