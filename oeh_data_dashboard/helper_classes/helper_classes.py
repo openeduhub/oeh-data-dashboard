@@ -59,6 +59,7 @@ class MissingInfo:
     name: str = ""
     title: str = ""
     _type: str = ""
+    content_url: str = ""
     action: str = ""
     doc_count: int = 0
     es_url: str = field(init=False)
