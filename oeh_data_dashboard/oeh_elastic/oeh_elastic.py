@@ -98,7 +98,7 @@ class OEHElastic:
         self.all_searched_materials: set[SearchedMaterialInfo] = set()
 
         self.get_oeh_search_analytics(
-            timestamp=self.last_timestamp, count=ANALYTICS_INITIAL_COUNT)
+            timestamp=None, count=ANALYTICS_INITIAL_COUNT)
 
     def collections_by_fachportale(
         self,
@@ -518,7 +518,7 @@ class OEHElastic:
                 "cm:creator", None)
             included_fps = {path for path in paths if path in collection_ids}
             return SearchedMaterialInfo(
-                resource_id,
+                _id=resource_id,
                 name=name,
                 title=title,
                 clicks=1,
@@ -527,7 +527,8 @@ class OEHElastic:
                 creator=creator,
                 fps=included_fps
             )
-        except:
+        except Exception as e:
+            logger.exception()
             return SearchedMaterialInfo()
 
     def get_aggregations(
@@ -624,4 +625,5 @@ oeh = OEHElastic()
 
 if __name__ == "__main__":
     print("\n\n\n\n")
-    oeh.collections_by_fachportale
+    oeh.collections_by_fachportale()
+    oeh.get_oeh_search_analytics()

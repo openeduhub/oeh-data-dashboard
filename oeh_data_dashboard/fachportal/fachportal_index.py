@@ -9,7 +9,7 @@ from oeh_data_dashboard.helper_classes import Bucket
 from oeh_data_dashboard.oeh_elastic import EduSharing, oeh
 
 from .fachportal import Fachportal
-from .constants import fpm_icons
+from oeh_data_dashboard.constants import fpm_icons
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class FachportalIndex:
         self._admin_page_layout = html.Div()
 
     def get_oeh_search_analytics(self):
-        oeh.get_oeh_search_analytics()
+        oeh.get_oeh_search_analytics(timestamp=None)
         self.searched_materials_not_in_collections = oeh.searched_materials_by_collection.get("none")
         self.searched_materials_not_in_collections_layout = Fachportal.build_searched_materials("Geklickte Materialien, die in keinem Fachportal liegen (~letzte 30 Tage)", self.searched_materials_not_in_collections) #searched_materials
 

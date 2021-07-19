@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TypedDict, Literal
 
-from oeh_data_dashboard.fachportal.constants import (ES_COLLECTION_URL, ES_NODE_URL,
-                                                     ES_PREVIEW_URL)
+from oeh_data_dashboard.constants import (ES_COLLECTION_URL, ES_NODE_URL,
+                                          ES_PREVIEW_URL)
 
 
 @dataclass
@@ -87,6 +87,7 @@ class SearchedMaterialInfo:
     clicks: int = 0
     name: str = ""
     title: str = ""
+    content_url: str = ""
     crawler: str = ""
     creator: str = ""
     timestamp: str = ""  # timestamp of last access on material (utc)
@@ -97,12 +98,12 @@ class SearchedMaterialInfo:
 
     def __eq__(self, o: object) -> bool:
         if isinstance(o, SearchedMaterialInfo):
-            return (self._id == o._id)
+            return self._id == o._id
         else:
             return False
 
     def __lt__(self, o: object):
-        return (self.timestamp < o.timestamp)
+        return self.timestamp < o.timestamp
 
     def __hash__(self) -> int:
         return hash((self._id,))
