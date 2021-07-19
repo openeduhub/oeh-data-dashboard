@@ -1,12 +1,23 @@
-from dataclasses import dataclass
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import TypedDict
+from typing import TypedDict, Literal
 
-from Collections.Constants import (ES_COLLECTION_URL, ES_NODE_URL,
-                                   ES_PREVIEW_URL)
+from oeh_data_dashboard.fachportal.constants import (ES_COLLECTION_URL, ES_NODE_URL,
+                                                     ES_PREVIEW_URL)
 
+
+@dataclass
+class Slider:
+    _id: str
+    min: int
+    max: int
+    step: int
+    value: int
+    marks: dict = field(init=False)
+
+    def __post_init__(self):
+        self.marks = {i: '{}'.format(i) for i in range(self.max+1)}
 
 class Licenses(TypedDict):
     oer: int
@@ -31,6 +42,15 @@ class Bucket:
             "text": self.key,
             "value": self.doc_count
         }
+    
+    def __eq__(self, o) -> bool:
+        if self.key == o:
+            return True
+        else:
+            return False
+
+    def __hash__(self) -> int:
+        return hash((self.key,))
 
 
 @dataclass
@@ -39,7 +59,9 @@ class MissingInfo:
     name: str = ""
     title: str = ""
     _type: str = ""
+    content_url: str = ""
     action: str = ""
+    doc_count: int = 0
     es_url: str = field(init=False)
 
     def __post_init__(self):
@@ -47,6 +69,15 @@ class MissingInfo:
             self.es_url = ES_COLLECTION_URL.format(self._id)
         else:
             self.es_url = ES_NODE_URL.format(self._id, self.action)
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, MissingInfo):
+            return (self._id == o._id)
+        else:
+            return False
+
+    def __hash__(self) -> int:
+        return hash((self._id,))
 
 
 @dataclass
@@ -90,3 +121,13 @@ class SearchedMaterialInfo:
             "local_timestamp": (datetime.fromisoformat(self.timestamp[:-1]) + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S"),
             "thumbnail_url": ES_PREVIEW_URL.format(self._id)
         }
+
+
+@dataclass
+class QueryParams:
+    attribute: str = None  # attribute to query
+    collection_id: str = None  # only search attribute where collection id is nodeRef.id or in respective path
+    index: str = None  # index to search in
+    size: int = None  # number of elements to return from query
+    agg_type: Literal["terms", "missing"] = None
+    additional_must: dict = None

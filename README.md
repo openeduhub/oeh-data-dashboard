@@ -17,7 +17,7 @@ Also look at the `ANALYTICS_INITIAL_COUNT` and `DEBUG` values in the `.env`-file
 1. Create a virtual environment: `python3 -m venv venv`
 1. Activate it: `source venv/bin/activate`
 1. Install requirements: `pip3 install -r requirements.txt`
-1. Run app: `python3 app.py`
+1. Run app: `python -m oeh_data_dashboard`
 
 
 ## Run app with Docker (production)
@@ -25,3 +25,4 @@ Also look at the `ANALYTICS_INITIAL_COUNT` and `DEBUG` values in the `.env`-file
 1. Adjust port setting in `docker-compose.yml`.
 1. Set `.env`-variables.
 1. Run `docker-compose up`.
+1. App will be running on port 80 if not otherwise specified in `docker-compose.yml`.

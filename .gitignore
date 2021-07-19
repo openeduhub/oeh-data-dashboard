@@ -8,6 +8,8 @@ venv/
 .DS_Store
 
 .git
+.idea
 
-test.json
-TODO.md
+__dev_stuff/
+data/
+

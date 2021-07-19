@@ -4,14 +4,15 @@ from typing import Literal
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objects as go
-from HelperClasses import Licenses, MissingInfo, SearchedMaterialInfo
-from OEHElastic.OEHElastic import oeh
+from oeh_data_dashboard.helper_classes import Licenses, MissingInfo, SearchedMaterialInfo, Slider
+from oeh_data_dashboard.oeh_elastic import oeh
 
-from .Constants import ES_NODE_URL, ES_PREVIEW_URL
+from oeh_data_dashboard.fachportal.constants import ES_NODE_URL, ES_PREVIEW_URL
 
 logger = logging.getLogger(__name__)
 
-class Collection:
+
+class Fachportal:
     """
     Container class for a Fachportal-Collection, i.e. the whole Physik or Mathematik Fachportal.
     It is NOT a pendant to an edu-sharing collection!
@@ -25,7 +26,7 @@ class Collection:
         self.url: str = item.get("content").get(
             "url")  # edu-sharing url of the collection
         self.app_url: str = self.make_url()
-        self._id: str = item.get("properties").get("sys:node-uuid")[0]
+        self._id: str = item.get("properties").get("sys:node-uuid", [])[0]
         self.about: str = item.get(
             "properties", {}).get("ccm:taxonid", [""])[0]
 
@@ -38,8 +39,11 @@ class Collection:
         self.resources_no_educontext: list[MissingInfo] = []
         self.resources_no_keywords: list[MissingInfo] = []
         self.resources_no_licenses: list[MissingInfo] = []
-        self.collection_no_keywords: list[MissingInfo] = []
-        self.collection_no_description: list[MissingInfo] = []
+        self.collections_no_keywords: list[MissingInfo] = []
+        self.collections_no_description: list[MissingInfo] = []
+        self.doc_threshold: int = 0
+        # self._collections_no_content: list = []
+        self._coll_no_content_layout = html.Div()
         self.quality_score: int = 0
         self._layout = html.Div()
 
@@ -62,8 +66,8 @@ class Collection:
             "resources_no_keywords": len(self.resources_no_keywords),
             "oer_licenes": self.licenses.get("oer"),
             "resources_no_licenses": len(self.resources_no_licenses),
-            "collection_no_keywords": len(self.collection_no_keywords),
-            "collection_no_description": len(self.collection_no_description)
+            "collections_no_keywords": len(self.collections_no_keywords),
+            "collections_no_description": len(self.collections_no_description)
         }
 
     def update_properties(self):
@@ -84,11 +88,29 @@ class Collection:
             "properties.cclom:title", qtype="resource")
         self.resources_no_keywords = self.get_missing_attribute(
             "properties.cclom:general_keyword", qtype="resource")
-        self.collection_no_keywords: list[MissingInfo] = self.get_missing_attribute(
+        self.collections_no_keywords: list[MissingInfo] = self.get_missing_attribute(
             "properties.cclom:general_keyword", qtype="collection")
-        self.collection_no_description: list[MissingInfo] = self.get_missing_attribute(
+        self.collections_no_description: list[MissingInfo] = self.get_missing_attribute(
             "properties.cm:description", qtype="collection")
+
         self.quality_score = self.calc_quality_score()
+
+    @property
+    def collections_no_content(self):
+        return oeh.collections_by_fachportale(fachportal_key=(self._id), doc_threshold=self.doc_threshold)
+
+    def get_coll_no_content_layout(self):
+        slider_config = Slider(_id="slider-" + (self._id),
+                               min=0, max=10, step=1, value=self.doc_threshold)
+
+        title = "Sammlungen ohne Inhalt"
+        layout = self.build_missing_info_card(
+            title=title,
+            attribute=self.collections_no_content,
+            slider_config=slider_config,
+            className=""
+        )
+        return layout
 
     @property
     def layout(self):
@@ -104,8 +126,8 @@ class Collection:
             self.resources_no_subject_identifiers,
             self.resources_no_educontext,
             self.resources_no_keywords,
-            self.collection_no_keywords,
-            self.collection_no_description
+            self.collections_no_keywords,
+            self.collections_no_description
         ]
         score = 0
 
@@ -124,7 +146,7 @@ class Collection:
         oer_cols = ["CC_0", "CC_BY", "CC_BY_SA", "PDM"]
         cc_but_not_oer = ["CC_BY_NC", "CC_BY_NC_ND",
                           "CC_BY_NC_SA", "CC_BY_SA_NC", "CC_BY_ND"]
-        copyright_cols = ["COPYRIGHT_FREE",	"COPYRIGHT_LICENSE", "CUSTOM"]
+        copyright_cols = ["COPYRIGHT_FREE", "COPYRIGHT_LICENSE", "CUSTOM"]
         missing_cols = ["", "NONE", "UNTERRICHTS_UND_LEHRMEDIEN"]
 
         licenses_sorted: Licenses = {
@@ -163,8 +185,8 @@ class Collection:
             "hits", {}).get("total", {}).get("value", 0)
         return r
 
-
-    def build_link_container(self, list_of_values: list[MissingInfo]):
+    @classmethod
+    def build_link_container(cls, list_of_values: list[MissingInfo]):
         container = []
         for i in list_of_values:
             container.append(
@@ -172,19 +194,39 @@ class Collection:
                     children=[
                         html.P(
                             children=[
-                                html.A(
+                                html.Div(
                                     children=[
                                         html.Div(
                                             children=[
                                                 html.Span(
                                                     f"{i.title if i.title else i.name}"),
+                                                html.A(
+                                                    children=[
+                                                        html.I(
+                                                            "open_in_new",
+                                                            className="material-icons",
+                                                            title="Original Material anzeigen"
+                                                        )
+                                                    ],
+                                                    href=f"{i.content_url}",
+                                                    target="_blank",
+                                                ) if i.content_url else None,
+                                                html.A(
+                                                    children=[
+                                                        html.I(
+                                                            "edit" if i.content_url else "open_in_new",
+                                                            className="material-icons",
+                                                            title="Metadaten in edu-sharing bearbeiten"
+                                                        )
+                                                    ],
+                                                    href=f"{i.es_url}",
+                                                    target="_blank",
+                                                ),
                                                 html.Img(
                                                     src=ES_PREVIEW_URL.format(i._id)),
                                             ]
                                         )
-                                    ],
-                                    href=f"{i.es_url}",
-                                    target="_blank"
+                                    ]
                                 )
                             ]
                         )
@@ -211,20 +253,49 @@ class Collection:
 
         return fig
 
-    def build_missing_info_card(self, title: str, attribute: list):
+    @classmethod
+    def build_missing_info_card(
+            cls,
+            title: str,
+            attribute: list,
+            slider_config: Slider = None,
+            className: str = "card-box"
+    ):
         """
         Returns a div with the infos for missing resources.
         """
-        return html.Div(
-            children=[
+        children = [
+            html.P(
+                children=f"{title} ({len(attribute)}):"),
+            dcc.Loading
+                (html.Div(
+                children=cls.build_link_container(attribute),
+                className="card"
+            ))
+        ]
+        if slider_config:
+            if slider_config.value == 0:
+                p_string = f"Zeige Sammlungen mit {slider_config.value} Inhalten"
+            else:
+                p_string = f"Zeige Sammlungen mit {slider_config.value} oder weniger Inhalten"
+            slider = html.Div([
                 html.P(
-                    f"{title} ({len(attribute)}):"),
-                html.Div(
-                    children=self.build_link_container(attribute),
-                    className="card"
+                    p_string,
+                    className="slider"
+                ),
+                dcc.Slider(
+                    id="my-slider",
+                    min=slider_config.min,
+                    max=slider_config.max,
+                    step=slider_config.step,
+                    value=slider_config.value,
+                    marks=slider_config.marks
                 )
-            ],
-            className="card-box"
+            ])
+            children.insert(1, slider)
+        return html.Div(
+            children=children,
+            className=className,
         )
 
     @classmethod
@@ -295,11 +366,12 @@ class Collection:
         res_no_license = self.build_missing_info_card(
             "Materialien ohne Lizenz", self.resources_no_licenses)
         coll_no_keywords = self.build_missing_info_card(
-            "Sammlungen ohne Schlagworte", self.collection_no_keywords)
+            "Sammlungen ohne Schlagworte", self.collections_no_keywords)
         coll_no_description = self.build_missing_info_card(
-            "Sammlung ohne Beschreibungstext", self.collection_no_description)
+            "Sammlung ohne Beschreibungstext", self.collections_no_description)
         searched_materials = self.build_searched_materials(
-            "Diese Materialien aus deinem Fachportal wurden gesucht und geklickt (~letze 30 Tage)", self.clicked_materials)
+            "Diese Materialien aus deinem Fachportal wurden gesucht und geklickt (~letze 30 Tage)",
+            self.clicked_materials)
         return html.Div(
             children=[
                 html.Div(
@@ -372,20 +444,10 @@ class Collection:
                     children=[
                         coll_no_description,
                         coll_no_keywords,
-
-                        # TODO
-                        # html.Div(
-                        #     children=[
-                        #         html.P(
-                        #             f"Sammlungen ohne Materialien ({len(fpm_data.no_resources_in_collection_container)}):"),
-                        #         html.Div(
-                        #             children=fpm_data.no_resources_in_collection_container,
-                        #             className="card"
-                        #         )
-                        #     ],
-                        #     className="card-box"
-                        # ),
-
+                        html.Div(
+                            id="coll-no-content-container",
+                            className="card-box",
+                            children=self.get_coll_no_content_layout())
                     ]
                 ),
                 html.Div(
@@ -399,7 +461,7 @@ class Collection:
 
     def get_missing_attribute(self, attribute, qtype: Literal["collection", "resource", "license"]):
         """
-        Gets the missing attributes 
+        Gets the missing attributes
         """
         if qtype == "resource":
             r: list = oeh.getMaterialByMissingAttribute(
@@ -427,12 +489,14 @@ class Collection:
             "properties", {}).get("cm:name", None)
         title = resource.get("_source", {}).get(
             "properties", {}).get("cclom:title", None)
+        content_url = resource.get("_source", {}).get(
+            "properties", {}).get("ccm:wwwurl", None)
         _type = resource.get("_source", {}).get("type", None)
         # action hint for edu-sharing to open dialog
         action = "OPTIONS.EDIT"
         if qtype == "license":
             action = "OPTIONS.LICENSE"
-        return MissingInfo(_id, name, title, _type, action)
+        return MissingInfo(_id = _id, name = name, title = title, _type = _type, action = action, content_url = content_url)
 
     def make_url(self):
         return self.name.lower().replace(" ", "-").replace("ü", "ue")
