@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TypedDict, Literal
 
-from oeh_data_dashboard.fachportal_index.constants import (ES_COLLECTION_URL, ES_NODE_URL,
-                                                           ES_PREVIEW_URL)
+from oeh_data_dashboard.fachportal.constants import (ES_COLLECTION_URL, ES_NODE_URL,
+                                                     ES_PREVIEW_URL)
 
 
 @dataclass

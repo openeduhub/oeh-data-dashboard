@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from oeh_data_dashboard.helper_classes import Licenses, MissingInfo, SearchedMaterialInfo, Slider
 from oeh_data_dashboard.oeh_elastic import oeh
 
-from oeh_data_dashboard.fachportal_index.constants import ES_NODE_URL, ES_PREVIEW_URL
+from oeh_data_dashboard.fachportal.constants import ES_NODE_URL, ES_PREVIEW_URL
 
 logger = logging.getLogger(__name__)
 

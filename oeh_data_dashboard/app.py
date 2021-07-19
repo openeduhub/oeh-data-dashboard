@@ -5,7 +5,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dotenv import load_dotenv
 
-from oeh_data_dashboard.fachportal_index import F
+from oeh_data_dashboard.fachportal import F
 from oeh_data_dashboard.index_info.attribute_distribution import layout as attr_layout
 
 load_dotenv()
