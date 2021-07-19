@@ -204,7 +204,8 @@ class Fachportal:
                                                     children=[
                                                         html.I(
                                                             "open_in_new",
-                                                            className="material-icons"
+                                                            className="material-icons",
+                                                            title="Original Material anzeigen"
                                                         )
                                                     ],
                                                     href=f"{i.content_url}",
@@ -214,7 +215,8 @@ class Fachportal:
                                                     children=[
                                                         html.I(
                                                             "edit" if i.content_url else "open_in_new",
-                                                            className="material-icons"
+                                                            className="material-icons",
+                                                            title="Metadaten in edu-sharing bearbeiten"
                                                         )
                                                     ],
                                                     href=f"{i.es_url}",
