@@ -6,7 +6,7 @@ import dash_react_wc
 import dash_table
 import pandas as pd
 from oeh_data_dashboard.helper_classes import Bucket
-from oeh_data_dashboard.oeh_elastic import EduSharing, oeh
+from oeh_data_dashboard.oeh_elastic import EduSharing, oeh, AggQuery
 
 from .fachportal import Fachportal
 from oeh_data_dashboard.constants import fpm_icons
@@ -39,10 +39,12 @@ class FachportalIndex:
         """
         Returns an array of dicts(keys: text, value) to build the wordcloud
         """
-        words_agg: list[Bucket] = oeh.get_aggregations(
+        agg_query = AggQuery(
             attribute="searchString.keyword",
             index="oeh-search-analytics",
-            size=50)
+            size=50
+        )
+        words_agg: list[Bucket] = oeh.get_aggregations(agg_query)
         words_buckets = oeh.build_buckets_from_agg(words_agg)
         wc_words: list[dict] = [item.as_wc() for item in words_buckets]
         options = {
@@ -134,10 +136,12 @@ class FachportalIndex:
 
 
     def build_data_table_for_agg(self, attribute: str, name: str, index: str = "workspace", size: int = 10000):
-        agg = oeh.get_aggregations(
+        agg_query = AggQuery(
             attribute=attribute,
             index=index,
-            size=size)
+            size=size
+        )
+        agg = oeh.get_aggregations(agg_query)
         agg_buckets = oeh.build_buckets_from_agg(agg)
         df = oeh.build_df_from_buckets(agg_buckets)
         data_table = dash_table.DataTable(

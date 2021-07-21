@@ -11,9 +11,11 @@ from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError
 from oeh_data_dashboard.helper_classes import Bucket, MissingInfo, SearchedMaterialInfo
+
 from numpy import inf
 
 import pandas as pd
+from .elastic_query import AggQuery
 
 load_dotenv()
 
@@ -533,48 +535,44 @@ class OEHElastic:
 
     def get_aggregations(
         self,
-        attribute: str,
-        collection_id: str = None,
-        index: str = "workspace",
-        size: int = 10000,
-        agg_type: Literal["terms", "missing"] = "terms"
+        agg_query: AggQuery
         ) -> dict:
         """
         Returns the aggregations for a given attribute.
         """
-        must_condition = {
-            "query": {
-                "bool": {
-                    "must": [
-                        self.getBaseCondition(collection_id),
-                    ]
-                }
-            }
-        }
-        if agg_type == "terms":
-            agg = {"terms": {
-                "field": attribute,
-                "size": size
-            }}
-        elif agg_type == "missing":
-            agg = {
-                "missing": {
-                    "field": attribute
-                }
-            }
-        else:
-            raise ValueError(f"agg_type: {agg_type} is not allowed. Use one of [\"terms\", \"missing\"]")
-
-        body = {
-            "size": 0,
-            "aggs": {
-                "my-agg": agg
-            }
-        }
-        if index == "workspace":
-            body.update(must_condition)
-        
-        r: dict = self.query_elastic(body=body, index=index, pretty=True)
+        # must_condition = {
+        #     "query": {
+        #         "bool": {
+        #             "must": [
+        #                 self.getBaseCondition(collection_id),
+        #             ]
+        #         }
+        #     }
+        # }
+        # if agg_type == "terms":
+        #     agg = {"terms": {
+        #         "field": attribute,
+        #         "size": size
+        #     }}
+        # elif agg_type == "missing":
+        #     agg = {
+        #         "missing": {
+        #             "field": attribute
+        #         }
+        #     }
+        # else:
+        #     raise ValueError(f"agg_type: {agg_type} is not allowed. Use one of [\"terms\", \"missing\"]")
+        #
+        # body = {
+        #     "size": 0,
+        #     "aggs": {
+        #         "my-agg": agg
+        #     }
+        # }
+        # if index == "workspace":
+        #     body.update(must_condition)
+        #
+        r: dict = self.query_elastic(body=agg_query.body, index=agg_query.index, pretty=True)
 
         return r
 
