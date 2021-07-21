@@ -154,8 +154,10 @@ class OEHElastic:
                 return False
 
         def build_missing_info(r: list[dict]) -> MissingInfo:
-            agg = self.get_aggregations(
-                attribute="collections.nodeRef.id.keyword")
+            agg_query = AggQuery(
+                attribute="collections.nodeRef.id.keyword"
+            )
+            agg = self.get_aggregations(agg_query)
             buckets = oeh.build_buckets_from_agg(agg)
             res = set()
             for item in r:

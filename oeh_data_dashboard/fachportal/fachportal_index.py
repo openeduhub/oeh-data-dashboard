@@ -160,6 +160,8 @@ class FachportalIndex:
 
 
     def build_data_table_crawler(self, name: str):
+        # TODO this fails if ANALYTICS_INITIAL_COUNT IS TOO LOW
+        # and no data is there. That should be catched
         data = oeh.sort_searched_materials()
         d = [b.as_dict() for b in data]
         df = pd.DataFrame(d)
