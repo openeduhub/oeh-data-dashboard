@@ -15,7 +15,7 @@ from oeh_data_dashboard.helper_classes import Bucket, MissingInfo, SearchedMater
 from numpy import inf
 
 import pandas as pd
-from .elastic_query import AggQuery
+from oeh_data_dashboard.oeh_elastic.elastic_query import AggQuery
 
 load_dotenv()
 
@@ -627,3 +627,5 @@ if __name__ == "__main__":
     print("\n\n\n\n")
     oeh.collections_by_fachportale()
     oeh.get_oeh_search_analytics()
+else:
+    pass
