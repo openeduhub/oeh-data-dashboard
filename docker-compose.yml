@@ -10,6 +10,7 @@ services:
     environment:
       - ES_HOST=$ES_HOST
       - MAX_CONN_RETRIES=$MAX_CONN_RETRIES
+      - ES_PORT=$ES_PORT
       - APP_PORT=$APP_PORT
       - ANALYTICS_INITIAL_COUNT=$ANALYTICS_INITIAL_COUNT
       - DEBUG=$DEBUG

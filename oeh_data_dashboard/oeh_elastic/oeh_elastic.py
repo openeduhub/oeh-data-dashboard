@@ -93,7 +93,7 @@ class OEHElastic:
         if hosts is None:
             hosts = [os.getenv("ES_HOST", "localhost")]
         self.connection_retries = 0
-        self.es = Elasticsearch(hosts=hosts)
+        self.es = Elasticsearch(hosts=hosts, port=os.getenv("ES_PORT", 9200))
         self.last_timestamp = "now-30d"  # get values for last 30 days by default
         # dict with collections as keys and a list of Searched Material Info as values
         self.searched_materials_by_collection: dict[str, SearchedMaterialInfo] = {}
